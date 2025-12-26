@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>Linux Day 4/210 - Shell, Redirection & Pipes</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            direction: rtl;
+            background: #0f172a;
+            color: #e5e7eb;
+            margin: 0;
+            padding: 16px;
+            line-height: 1.6;
+        }
+        h1, h2 { color: #38bdf8; }
+        h3 { color: #60a5fa; }
+        .block {
+            border: 1px solid #334155;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 12px;
+            background: #020617;
+        }
+        code {
+            background: #111827;
+            padding: 4px 8px;
+            border-radius: 6px;
+            direction: ltr;
+            display: inline-block;
+            font-family: 'Courier New', monospace;
+        }
+        pre {
+            background: #111827;
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            direction: ltr;
+            border-left: 4px solid #38bdf8;
+            font-family: 'Courier New', monospace;
+        }
+        .note {
+            color: #a5b4fc;
+            font-size: 0.9rem;
+            font-style: italic;
+        }
+        ul { padding-right: 20px; }
+        button {
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            background: #22c55e;
+            color: #0f172a;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+        button:hover { background: #16a34a; }
+        .quiz-q {
+            margin-bottom: 20px;
+            padding: 12px;
+            background: #1e293b;
+            border-radius: 8px;
+        }
+        .result-box {
+            margin-top: 20px;
+            padding: 16px;
+            border-radius: 8px;
+            background: #022c22;
+            border: 2px solid #22c55e;
+            display: none;
+        }
+        .command-title {
+            border-bottom: 2px solid #38bdf8;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+        .scenario {
+            background: #1e1b4b;
+            padding: 12px;
+            border-radius: 6px;
+            margin: 8px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔴 Linux Day 4/210 | أسبوع 1/30</h1>
+    <h2>Shell Basics, Redirection & Pipes</h2>
+
+    <div class="block">
+        <h3>🎯 Objectives</h3>
+        <ul>
+            <li>فهم دور <strong>Shell (bash)</strong> كطبقة بين المستخدم والـ kernel والفرق بين command / option / argument.</li>
+            <li>التعمّق في استخدام أوامر مثل <code>ls</code>, <code>cp</code>, <code>rm</code>, <code>cat</code>, <code>grep</code>, <code>less</code>.</li>
+            <li>تعلّم أساسيات <strong>I/O Redirection</strong> باستخدام <code>&gt;</code>, <code>&gt;&gt;</code>, <code>&lt;</code>, <code>2&gt;</code>, <code>/dev/null</code>.</li>
+            <li>فهم <strong>pipes</strong> باستخدام الرمز <code>|</code> لبناء سلاسل أوامر فعّالة.</li>
+            <li>تطبيق redirection &amp; pipes في سيناريوهات أمنية مثل تحليل الـ logs وتهيئة تقارير سريعة.</li>
+        </ul>
+    </div>
+
+    <div class="block">
+        <h3>📚 Theory</h3>
+        <p><strong>الـ Shell</strong> هو برنامج يتوسط بينك وبين نظام التشغيل: يقرأ ما تكتبه في الـ Terminal (مثل <code>ls -l /etc</code>)، يحلل الأمر إلى اسم برنامج، خيارات، ومعطيات، ثم يستدعي system calls من الـ kernel لتنفيذ العملية المطلوبة مثل قراءة ملفات أو فتح sockets.</p>
+        <p>كل أمر تقليدي في Linux يتكون من ثلاث طبقات رئيسية: <strong>command</strong> مثل <code>ls</code>، ثم <strong>options</strong> مثل <code>-l</code> أو <code>--color</code>، وأخيراً <strong>arguments</strong> مثل <code>/etc</code> أو <code>file.txt</code>. فهم هذه البنية يجعل قراءة الـ man pages وربط الأوامر ببعض أسهل بكثير.</p>
+        <p>قنوات الإدخال/الإخراج القياسية هي: <strong>stdin(0)</strong> المدخلات (عادة لوحة المفاتيح)، <strong>stdout(1)</strong> المخرجات العادية (الشاشة)، و<strong>stderr(2)</strong> رسائل الخطأ. بإعادة التوجيه (redirection) يمكنك تغيير وجهة هذه القنوات نحو ملفات أو إلى <code>/dev/null</code>، بينما تسمح لك الـ <strong>pipes</strong> بتمرير ناتج أمر كمدخل لأمر آخر، مما يسمح ببناء سلاسل تحليل قوية بدون ملفات وسيطة.</p>
+        <p class="note">سؤال تفكير: لماذا يعتبر استخدام pipes أفضل من كتابة كل خطوة في ملف مؤقت؟ فكّر في الأداء، المساحة، وسهولة التلاعب بالبيانات في بيئات Incident Response.</p>
+    </div>
+
+    <div class="block">
+        <h3>💻 Practical Steps</h3>
+
+        <p><strong>1) مراجعة command / option / argument</strong></p>
+        <pre><code># من مجلد المنزل
+whoami
+pwd
+ls -l
+ls -lt
+ls -lha</code></pre>
+        <p class="note">جرّب تغيير ترتيب الخيارات في <code>ls</code>؛ لاحظ أن <code>ls -lh -a</code> و<code>ls -alh</code> يعطون نتيجة متقاربة لأن الـ shell يمرر جميع الـ options دفعة واحدة للبرنامج نفسه.</p>
+
+        <p><strong>2) Redirection أساسي إلى ملفات</strong></p>
+        <pre><code>cd ~
+ls /etc &gt; etc_list.txt           # حفظ قائمة /etc في ملف
+ls /doesnotexist 2&gt; errors.txt    # توجيه الأخطاء فقط لملف
+ls /etc &gt;&gt; etc_list.txt          # إضافة نتائج جديدة لنفس الملف
+cat etc_list.txt
+cat errors.txt</code></pre>
+        <p class="note">لاحظ أن <code>&gt;</code> يكتب فوق الملف، بينما <code>&gt;&gt;</code> يضيف في النهاية. هذه التفاصيل مهمة عند جمع الأدلة حتى لا تمسح بياناتك بالخطأ.</p>
+
+        <p><strong>3) استخدام /dev/null لإخفاء الضوضاء</strong></p>
+        <pre><code>ls /root 2&gt;/dev/null   # إخفاء رسائل Permission denied
+ls /root               # نفس الأمر بدون إخفاء</code></pre>
+        <p class="note"><code>/dev/null</code> هو "ثقب أسود" لأي بيانات تُرسل إليه. في السكربتات الأمنية، يساعد على تنظيف المخرجات وإخفاء الأخطاء التي نتوقعها ولا نريد رؤيتها.</p>
+
+        <p><strong>4) Pipes لتحليل سريع للـ logs</strong></p>
+        <pre><code>cd /var/log
+ls -lh | head
+ls -lh | grep auth
+cat auth.log | grep "Failed" | head
+cat auth.log | grep -i "failed" | wc -l</code></pre>
+        <p class="note">السطر الأخير يعدّ عدد محاولات الدخول الفاشلة؛ هذه خطوة أساسية في اكتشاف هجوم brute force على SSH أو خدمات أخرى.</p>
+
+        <p><strong>5) الجمع بين pipes و tee لحفظ التقارير</strong></p>
+        <pre><code>cd ~
+grep -E "(/bin/bash|/bin/zsh)" /etc/passwd | tee real_shells.txt
+grep -E "(/bin/bash|/bin/zsh)" /etc/passwd | wc -l &gt; shell_users_count.txt
+cat shell_users_count.txt</code></pre>
+        <p class="note"><code>tee</code> يطبع النتيجة على الشاشة ويكتبها في ملف في نفس الوقت؛ ممتاز عندما تريد متابعة ما يحدث مباشرة وتحتفظ بنسخة للتوثيق.</p>
+    </div>
+
+    <div class="block">
+        <h3>🔬 Lab / Mini‑CTF</h3>
+
+        <p><strong>تمرين 1 – تقرير المستخدمين ذوي الـ Shell الحقيقي (سهل)</strong></p>
+        <pre><code>mkdir -p ~/day4 &amp;&amp; cd ~/day4
+grep -E "(/bin/bash|/bin/zsh)" /etc/passwd &gt; real_shells.txt
+head -5 real_shells.txt
+echo "# هذا الملف يحدد الحسابات التي يمكنها تنفيذ أوامر على النظام، ما يساعدنا على حصر سطح الهجوم." &gt; note_real_shells.txt</code></pre>
+        <p class="note">سؤال: ماذا يحدث لو وُجد حساب service حساس وله <code>/bin/bash</code> بدلاً من <code>/usr/sbin/nologin</code>؟ فكّر في سهولة استغلاله إذا تسربت بياناته.</p>
+
+        <p><strong>تمرين 2 – Log Mining (متوسط)</strong></p>
+        <pre><code>cd /var/log
+grep -i "failed" auth.log 2&gt;/dev/null | wc -l &gt; failed_count.txt
+cat failed_count.txt
+grep -i "failed" auth.log 2&gt;/dev/null | head &gt; failed_samples.txt
+cd ~/day4</code></pre>
+        <p class="note">حاول تفسير أي سطر من <code>failed_samples.txt</code>: ما اسم الخدمة؟ ما الـ IP؟ هل ترى نمط محاولات متتالية من نفس العنوان؟</p>
+
+        <p><strong>تمرين 3 – Mini‑CTF: البحث عن FLAG باستخدام pipes</strong></p>
+        <pre><code>cd ~/day4
+mkdir ctf &amp;&amp; cd ctf
+
+echo "nothing here" &gt; note1.txt
+echo "try again" &gt; note2.txt
+echo "FLAG{linux_shell_master}" &gt; hidden_flag.txt
+echo "FLAG{fake_flag}" &gt; fake_flag.log
+
+find . -type f -print | grep "flag" | xargs cat | grep "linux_shell_master"
+
+echo "# pipeline يسمح بالبحث الآلي في عدة ملفات/أدلة، مفيد عندما لا نعرف اسم الملف مسبقاً، كما في بيئات حقيقية أو CTF." \
+    &gt; reflection_ctf.txt</code></pre>
+        <p class="note">الفكرة هنا أنك لا تعتمد على معرفة مسبقة باسم الملف؛ تستعمل <code>find</code> و <code>grep</code> و <code>xargs</code> لاكتشاف الـ FLAG كما تفعل في تحديات حقيقية.</p>
+    </div>
+
+    <div class="block">
+        <h3>📸 Screenshot Instructions</h3>
+        <ul>
+            <li>Screenshot للـ Terminal يوضح:
+                <ul>
+                    <li>إنشاء مجلد <code>~/day4</code> والتنقل إليه (<code>pwd</code>).</li>
+                    <li>نتائج أوامر pipes في <code>/var/log</code> خاصة <code>cat auth.log | grep -i "failed" | wc -l</code>.</li>
+                    <li>نتيجة Mini‑CTF مع ظهور <code>FLAG{linux_shell_master}</code> في المخرجات.</li>
+                </ul>
+            </li>
+            <li>Screenshot لنتيجة الـ Quiz التفاعلي في الأسفل بعد حساب الدرجة.</li>
+            <li>اكتب في الرسالة: <strong>"درس 4 مكتمل ✓ ساعات: 4"</strong>.</li>
+        </ul>
+        <p class="note">كلما كانت الـ Screenshots واضحة وتحتوي الأوامر والنتائج الكاملة، كان التقييم الأمني والتقني أدق.</p>
+    </div>
+
+    <div class="block">
+        <h3>📖 قاموس أوامر هذا الدرس (Command Dictionary)</h3>
+
+        <div class="command-title">
+            <h4><code>ls</code></h4>
+        </div>
+        <p><strong>وصف:</strong> عرض محتويات المجلد الحالي أو مسار محدد. في الخلفية يستدعي الـ kernel لقراءة directory entries ثم ينسقها حسب الخيارات ويطبعها على <code>stdout</code>.</p>
+        <ul>
+            <li><code>-l</code>: عرض تفصيلي يتضمن permissions، المالك، الحجم، وتاريخ التعديل.</li>
+            <li><code>-a</code>: إظهار الملفات المخفية التي تبدأ بـ <code>.</code>.</li>
+            <li><code>-h</code>: أحجام مقروءة للبشر (KB, MB, GB) عند استخدامه مع <code>-l</code>.</li>
+            <li><code>-t</code>: ترتيب حسب وقت التعديل (الأحدث أولاً عادة).</li>
+            <li><code>-r</code>: عكس الترتيب، يمكن دمجه مع <code>-t</code> للحصول على الأقدم أولاً.</li>
+        </ul>
+
+        <div class="command-title">
+            <h4><code>cp</code></h4>
+        </div>
+        <p><strong>وصف:</strong> نسخ الملفات والمجلدات من مصدر إلى وجهة. داخلياً يفتح الملف المصدر للقراءة، والملف الهدف للكتابة، وينقل البيانات على شكل كتل صغيرة.</p>
+        <ul>
+            <li><code>-p</code>: الحفاظ على permissions و timestamps والمالك قدر الإمكان.</li>
+            <li><code>-r</code>: نسخ مجلدات بشكل recursive مع كل محتوياتها.</li>
+            <li><code>-i</code>: وضع تفاعلي؛ يسأل قبل استبدال ملفات موجودة.</li>
+            <li><code>-v</code>: طباعة كل عملية نسخ تتم لتتبع ما يحدث.</li>
+            <li><code>-u</code>: نسخ الملفات الأحدث فقط إلى الوجهة (مفيد للنسخ الاحتياطي).</li>
+        </ul>
+
+        <div class="command-title">
+            <h4><code>rm</code></h4>
+        </div>
+        <p><strong>وصف:</strong> حذف ملفات ومجلدات عن طريق إزالة روابط الـ inode. البيانات تظل على القرص حتى تُكتب فوقها، لذلك يمكن أحياناً استرجاعها بأدوات forensics.</p>
+        <ul>
+            <li><code>-r</code>: حذف مجلدات ومحتوياتها بشكل recursive.</li>
+            <li><code>-f</code>: تجاهل الأخطاء وعدم طلب تأكيد (خطر جداً مع <code>/</code> أو المسارات الحساسة).</li>
+            <li><code>-i</code>: يسأل قبل حذف كل ملف، خيار آمن للمبتدئين.</li>
+            <li><code>-v</code>: عرض أسماء الملفات أثناء حذفها.</li>
+            <li>استخدام pattern مثل <code>rm *.log</code> لحذف مجموعة من ملفات logs دفعة واحدة.</li>
+        </ul>
+
+        <div class="command-title">
+            <h4><code>cat</code></h4>
+        </div>
+        <p><strong>وصف:</strong> طباعة محتوى الملفات على <code>stdout</code> أو دمج عدة ملفات معاً. يعمل بسلاسة مع pipes لتمرير البيانات إلى أوامر أخرى.</p>
+        <ul>
+            <li>بدون خيارات: <code>cat file.txt</code> لعرض ملف بسيط.</li>
+            <li>عدة ملفات: <code>cat part1 part2 &gt; whole</code> لدمج الملفات.</li>
+            <li>كمصدر في pipeline: <code>cat auth.log | grep "Failed"</code>.</li>
+            <li>يُستخدم في السكربتات مع here‑documents لتعريف نصوص متعددة الأسطر.</li>
+        </ul>
+
+        <div class="command-title">
+            <h4><code>less</code></h4>
+        </div>
+        <p><strong>وصف:</strong> pager تفاعلي لقراءة الملفات الطويلة أو مخرجات الأوامر. يحمّل أجزاء من الملف عند الطلب فقط، ما يوفر الذاكرة.</p>
+        <ul>
+            <li><code>Space</code>: صفحة إلى الأسفل.</li>
+            <li><code>b</code>: صفحة إلى الأعلى.</li>
+            <li><code>/pattern</code>: البحث عن pattern داخل الملف.</li>
+            <li><code>n</code>/<code>N</code>: التنقل بين نتائج البحث التالية/السابقة.</li>
+            <li><code>q</code>: الخروج من <code>less</code>.</li>
+        </ul>
+
+        <div class="command-title">
+            <h4><code>grep</code></h4>
+        </div>
+        <p><strong>وصف:</strong> أداة قوية للبحث عن سطور تحتوي نصاً معيناً أو تعبيراً منتظماً في الملفات أو الـ streams. يعتمد على خوارزميات مطابقة نص فعّالة (regular expressions).</p>
+        <ul>
+            <li><code>-i</code>: تجاهل حالة الأحرف (case-insensitive)، جيد للبحث عن "Failed" أو "failed".</li>
+            <li><code>-E</code>: تفعيل extended regex لاستخدام أنماط أكثر تعقيداً.</li>
+            <li><code>-r</code>: بحث recursive في المجلدات الفرعية.</li>
+            <li><code>-n</code>: عرض رقم السطر بجانب كل نتيجة.</li>
+            <li>يستخدم كثيراً مع pipes: <code>command | grep pattern</code>.</li>
+        </ul>
+
+        <div class="command-title">
+            <h4><code>tee</code></h4>
+        </div>
+        <p><strong>وصف:</strong> يقرأ من <code>stdin</code> ويكتب إلى ملف وإلى <code>stdout</code> في نفس الوقت، فيشبه حرف T في السباكة حيث يتفرع الخط إلى مسارين.</p>
+        <ul>
+            <li>بدون خيارات: يستبدل محتوى الملف بالبيانات الجديدة.</li>
+            <li><code>-a</code>: يضيف (append) بدلاً من الاستبدال.</li>
+            <li>مثال: <code>grep error log.txt | tee errors.txt</code> لمراقبة النتائج وحفظها في آن واحد.</li>
+        </ul>
+
+        <div class="command-title">
+            <h4><code>Redirection &amp; Pipes</code></h4>
+        </div>
+        <p><strong>وصف:</strong> ليست أوامر بحد ذاتها، بل مميزات من الـ shell لإعادة توجيه قنوات الإدخال/الإخراج وربط الأوامر معاً.</p>
+        <ul>
+            <li><code>&gt;</code>: إرسال <code>stdout</code> إلى ملف (مع استبدال المحتوى).</li>
+            <li><code>&gt;&gt;</code>: إضافة <code>stdout</code> إلى نهاية ملف موجود.</li>
+            <li><code>2&gt;</code>: إرسال <code>stderr</code> فقط إلى ملف أو إلى <code>/dev/null</code>.</li>
+            <li><code>&lt;</code>: أخذ <code>stdin</code> من ملف بدلاً من لوحة المفاتيح.</li>
+            <li><code>|</code>: pipe لتمرير مخرجات أمر إلى مدخلات أمر آخر، أساس بناء "سلاسل" معالجة البيانات.</li>
+        </ul>
+    </div>
+
+    <div class="block">
+        <h3>🌍 سيناريوهات واقعية لأوامر هذا الدرس</h3>
+
+        <div class="scenario">
+            <h4><strong>1) Incident Response – عدّ محاولات الدخول الفاشلة</strong></h4>
+            <pre><code>grep -i "failed" /var/log/auth.log 2&gt;/dev/null | wc -l</code></pre>
+            <p><strong>السيناريو:</strong> محلل أمن يريد تقييم حجم هجوم brute force على خدمة SSH.</p>
+            <p><strong>شرح الأمر:</strong> <code>grep -i "failed"</code> يبحث عن جميع الأسطر التي تحتوي الكلمة بغض النظر عن حالة الأحرف، <code>2&gt;/dev/null</code> يخفي رسائل الخطأ (مثلاً إن لم يكن الملف موجوداً)، و<code>wc -l</code> يحسب عدد السطور الناتجة. النتيجة هي رقم يدل على كثافة الهجمات خلال فترة ملف الـ log، ويمكن مقارنته بين أيام مختلفة لاكتشاف ارتفاع مفاجئ.</p>
+        </div>
+
+        <div class="scenario">
+            <h4><strong>2) مراجعة حسابات لديها Shell فعّال</strong></h4>
+            <pre><code>grep -E "(/bin/bash|/bin/zsh)" /etc/passwd | cut -d: -f1 &gt; active_shell_users.txt</code></pre>
+            <p><strong>السيناريو:</strong> مسؤول نظام يراجع من يملك قدرة تنفيذ أوامر مباشرة على النظام.</p>
+            <p><strong>شرح الأمر:</strong> <code>grep -E</code> يستخدم regex لاختيار الأسطر التي ينتهي فيها الـ shell بـ <code>/bin/bash</code> أو <code>/bin/zsh</code>. بعدها <code>cut -d: -f1</code> يأخذ الحقل الأول (اسم المستخدم) مستعملاً <code>:</code> كمحدد حقول. النتيجة تُرسل إلى الملف <code>active_shell_users.txt</code> عبر <code>&gt;</code>. يمكن مقارنة هذه القائمة بسياسات الشركة أو قوائم الـ HR لكشف حسابات زائدة أو منسية.</p>
+        </div>
+
+        <div class="scenario">
+            <h4><strong>3) تحديد أكبر ملفات log لمراقبة المساحة</strong></h4>
+            <pre><code>ls -lh /var/log | sort -k5 -h | tail</code></pre>
+            <p><strong>السيناريو:</strong> DevOps أو SysAdmin يريد معرفة أي ملفات log تستهلك المساحة قبل أن تمتلئ الـ partition.</p>
+            <p><strong>شرح الأمر:</strong> <code>ls -lh /var/log</code> يعرض قائمة الملفات مع أحجام مقروءة، ثم <code>sort -k5 -h</code> يرتب النتائج حسب العمود الخامس (الحجم) بتفسير human-readable (K/M/G)، وأخيراً <code>tail</code> يعرض أكبر 10 ملفات. النتيجة تساعد في اتخاذ قرار حول إعداد log rotation أو حذف ملفات قديمة أو التحقيق في log ينمو بشكل غير طبيعي نتيجة هجوم أو خطأ برمجي.</p>
+        </div>
+
+        <div class="scenario">
+            <h4><strong>4) توثيق نتائج بحث أثناء تحقيق أمني</strong></h4>
+            <pre><code>grep "sudo:" /var/log/auth.log | tee sudo_events.log | wc -l</code></pre>
+            <p><strong>السيناريو:</strong> محلل Incident Response يتتبع كل أحداث <code>sudo</code> خلال فترة معينة ويريد حفظها في ملف مع معرفة عددها.</p>
+            <p><strong>شرح الأمر:</strong> <code>grep "sudo:"</code> يلتقط السطور التي تشير إلى استخدام sudo، ثم <code>tee sudo_events.log</code> يكتب هذه السطور في ملف وفي نفس الوقت يمررها إلى <code>wc -l</code> الذي يحسب العدد الكلي. بهذه الطريقة يحصل المحلل على ملف كامل للأحداث لاستخدامه في التقرير، وعلى رقم إجمالي يمكن وضعه في ملخص الحادث.</p>
+        </div>
+    </div>
+
+    <div class="block">
+        <h3>🧠 Quiz – Shell, Redirection &amp; Pipes</h3>
+
+        <div class="quiz-q">
+            <strong>1. ما المقصود بالرمزين <code>command &gt; file.txt</code> ؟</strong><br>
+            <label><input type="radio" name="q1" value="a"> توجيه المخرجات القياسية stdout إلى الملف مع استبدال محتواه</label><br>
+            <label><input type="radio" name="q1" value="b"> إضافة الأخطاء فقط إلى الملف</label><br>
+            <label><input type="radio" name="q1" value="c"> قراءة المدخلات من الملف بدلاً من الكيبورد</label>
+        </div>
+
+        <div class="quiz-q">
+            <strong>2. أي أمر يعدّ عدد محاولات الدخول الفاشلة في <code>auth.log</code>؟</strong><br>
+            <label><input type="radio" name="q2" value="a"> <code>grep -i "failed" /var/log/auth.log | wc -l</code></label><br>
+            <label><input type="radio" name="q2" value="b"> <code>ls -lh /var/log | grep failed</code></label><br>
+            <label><input type="radio" name="q2" value="c"> <code>cat /var/log/auth.log &gt; failed.txt</code></label>
+        </div>
+
+        <div class="quiz-q">
+            <strong>3. ما وظيفة <code>2&gt;/dev/null</code> في الأمر؟</strong><br>
+            <label><input type="radio" name="q3" value="a"> إخفاء رسائل الخطأ stderr</label><br>
+            <label><input type="radio" name="q3" value="b"> إخفاء المخرجات القياسية stdout</label><br>
+            <label><input type="radio" name="q3" value="c"> إعادة تشغيل الأمر تلقائياً عند حدوث خطأ</label>
+        </div>
+
+        <div class="quiz-q">
+            <strong>4. أي وصف أدق للـ pipe <code>|</code>؟</strong><br>
+            <label><input type="radio" name="q4" value="a"> يربط مخرجات أمر كمدخل لأمر آخر بدون ملفات وسيطة</label><br>
+            <label><input type="radio" name="q4" value="b"> يستخدم لحذف الملفات من عدة مجلدات</label><br>
+            <label><input type="radio" name="q4" value="c"> يغيّر صلاحيات الملف مثل <code>chmod</code></label>
+        </div>
+
+        <div class="quiz-q">
+            <strong>5. ما دور <code>tee</code> في pipeline مثل <code>grep error log.txt | tee errors.txt</code>؟</strong><br>
+            <label><input type="radio" name="q5" value="a"> نسخ النتائج إلى ملف فقط بدون عرضها</label><br>
+            <label><input type="radio" name="q5" value="b"> عرض النتائج على الشاشة وكتابتها إلى ملف في نفس الوقت</label><br>
+            <label><input type="radio" name="q5" value="c"> حذف الأسطر التي تحتوي على كلمة error</label>
+        </div>
+
+        <button onclick="gradeQuiz()">حساب النتيجة</button>
+        <div id="quizResult" class="result-box"></div>
+        <p class="note">📸 بعد الضغط على زر "حساب النتيجة" خذ Screenshot لهذا الصندوق + Screenshot للـ Terminal ثم أرسلهم مع جملة: "درس 4 مكتمل ✓ ساعات: 4".</p>
+    </div>
+
+    <script>
+        function gradeQuiz() {
+            let score = 0;
+            const total = 5;
+
+            const q1 = document.querySelector('input[name="q1"]:checked');
+            const q2 = document.querySelector('input[name="q2"]:checked');
+            const q3 = document.querySelector('input[name="q3"]:checked');
+            const q4 = document.querySelector('input[name="q4"]:checked');
+            const q5 = document.querySelector('input[name="q5"]:checked');
+
+            if (q1 && q1.value === 'a') score++;
+            if (q2 && q2.value === 'a') score++;
+            if (q3 && q3.value === 'a') score++;
+            if (q4 && q4.value === 'a') score++;
+            if (q5 && q5.value === 'b') score++;
+
+            const percent = Math.round((score / total) * 100);
+            let grade = 'F';
+            if (percent >= 90) grade = 'A';
+            else if (percent >= 80) grade = 'B';
+            else if (percent >= 70) grade = 'C';
+            else if (percent >= 60) grade = 'D';
+
+            const box = document.getElementById('quizResult');
+            box.style.display = 'block';
+            box.innerHTML = `
+                <strong>Quiz Day 4 - Shell, Redirection &amp; Pipes</strong><br>
+                ${score}/${total} إجابات صحيحة<br>
+                النسبة: ${percent}%<br>
+                التقدير: ${grade}<br><br>
+                📸 خذ Screenshot لهذا الصندوق + Screenshot للـ Terminal وأرسلهما إلى Perplexity لتوثيق إنجاز درس اليوم.
+            `;
+        }
+    </script>
+</body>
+</html>

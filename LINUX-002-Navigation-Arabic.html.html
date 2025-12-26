@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>Linux Day 2 - Absolute & Relative Paths</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            direction: rtl;
+            background: #0f172a;
+            color: #e5e7eb;
+            margin: 0;
+            padding: 16px;
+        }
+        h1, h2 { color: #38bdf8; }
+        .block {
+            border: 1px solid #334155;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 6px;
+            background: #020617;
+        }
+        code {
+            background: #111827;
+            padding: 2px 4px;
+            border-radius: 4px;
+            direction: ltr;
+            display: inline-block;
+            font-family: "Courier New", monospace;
+        }
+        pre {
+            background: #111827;
+            padding: 10px;
+            border-radius: 6px;
+            direction: ltr;
+            overflow-x: auto;
+            border-left: 4px solid #38bdf8;
+            font-family: "Courier New", monospace;
+            font-size: 0.9rem;
+        }
+        .note {
+            color: #a5b4fc;
+            font-size: 0.9rem;
+        }
+        ul { padding-right: 20px; }
+        button {
+            padding: 6px 10px;
+            border-radius: 4px;
+            border: none;
+            background: #22c55e;
+            color: #0f172a;
+            cursor: pointer;
+        }
+        button:hover { background: #16a34a; }
+        .quiz-q { margin-bottom: 8px; }
+        .result-box {
+            margin-top: 8px;
+            padding: 8px;
+            border-radius: 6px;
+            background: #022c22;
+            border: 1px solid #22c55e;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔴 Linux Day 2 / 210 | Week 1 / 30</h1>
+    <h2>المسارات المطلقة والنسبية &amp; أوامر <code>cd</code> المتقدّمة</h2>
+
+    <!-- Objectives -->
+    <div class="block">
+        <h2>🎯 الأهداف (Objectives)</h2>
+        <ul>
+            <li>فهم الفرق بين المسار المطلق (Absolute path) والمسار النسبي (Relative path) مع أمثلة من مجلد المنزل.</li>
+            <li>استخدام أوامر <code>cd</code>, <code>.</code>, <code>..</code>, <code>cd -</code> للتنقل الذكي داخل نظام الملفات.</li>
+            <li>مراجعة أوامر Day 1 (<code>whoami</code>, <code>pwd</code>, <code>ls -la</code>) داخل سياق المسارات.</li>
+            <li>تنفيذ Lab و Mini‑CTF تعتمد على شجرة مجلدات معقّدة نسبيًا.</li>
+            <li>ربط اختيار نوع المسار بتأثيره على أمان السكربتات والتحقيق في الحوادث.</li>
+        </ul>
+    </div>
+
+    <!-- Theory -->
+    <div class="block">
+        <h2>📚 النظرية (Theory)</h2>
+        <p>
+            في لينكس، يبدأ كل شيء من مجلد الجذر <strong><code>/</code></strong>.  
+            أي مسار يبدأ بـ <code>/</code> يُسمّى مسارًا مطلقًا؛ مثل <code>/home/user/pathlab/project</code>.  
+            هذا المسار لا يعتمد على مكانك الحالي، لذلك يعطيك مرجعية ثابتة في السكربتات وأدوات الإدارة.
+        </p>
+        <p>
+            المسار النسبي يُفسَّر اعتمادًا على ناتج <code>pwd</code>.  
+            إذا كان المجلد الحالي <code>/home/user</code> فإن المسار <code>pathlab/project</code> يشير إلى <code>/home/user/pathlab/project</code>،  
+            بينما يشير <code>../etc</code> إلى مجلد الأب ثم <code>etc</code>.  
+            هذا يجعل المسارات النسبية مرنة لكنها حسّاسة للغاية لموضع التنفيذ.
+        </p>
+        <p class="note">
+            رموز أساسية يجب حفظها مبكرًا:
+            <br>• <code>.</code> = المجلد الحالي (Current directory).  
+            <br>• <code>..</code> = المجلد الأب (Parent directory).  
+            <br>• <code>~</code> = مجلد المنزل للمستخدم الحالي (Home).
+        </p>
+        <p>
+            أمر <code>cd</code> هو <strong>Shell builtin</strong> يغيّر القيمة المنطقية لمتغير البيئة <code>PWD</code>.  
+            استدعاء <code>cd</code> بدون براميتر ينقلك إلى <code>$HOME</code>.  
+            أما <code>cd -</code> فينقلك بين آخر مسارين استخدمتهما، وهو بمثابة زر "Back" بين مجلدين أثناء فحص ملفات إعدادات وسجلات.
+        </p>
+        <p class="note">
+            سؤال تفكير: سكربت نسخ احتياطي يحتوي السطر  
+            <code>cp logs/* backup/</code>  
+            ما الخطر لو تم تشغيله من مجلد غير متوقَّع؟ ما الفرق لو استُخدم المسار المطلق <code>/var/log</code> بدلًا من مسار نسبي؟
+        </p>
+    </div>
+
+    <!-- Practical Steps -->
+    <div class="block">
+        <h2>💻 خطوات عملية (Practical Steps)</h2>
+        <p><strong>1) مراجعة سريعة:</strong></p>
+        <pre><code>whoami
+pwd
+ls</code></pre>
+
+        <p><strong>2) مسارات مطلقة (Absolute):</strong></p>
+        <pre><code>cd /
+pwd          # المتوقع: /
+
+cd /home
+pwd          # المتوقع: /home
+
+cd /var/log
+pwd          # المتوقع: /var/log
+ls | head</code></pre>
+        <p class="note">
+            هنا كل مسار بدأ بـ <code>/</code>. لاحظ أن النتيجة نفسها مهما كان مكانك السابق؛  
+            هذه هي قوة المسار المطلق عند كتابة سكربتات إدارة أو نسخ احتياطي.
+        </p>
+
+        <p><strong>3) مسارات نسبية مع <code>..</code>:</strong></p>
+        <pre><code>cd
+mkdir -p lab/day2/a/b
+cd lab/day2/a/b
+pwd
+
+cd ..
+pwd          # صعود مستوى واحد
+cd ../..
+pwd          # صعود مستويين
+cd ..
+pwd          # العودة إلى /home/username</code></pre>
+
+        <p><strong>4) استخدام <code>cd -</code> للعودة السريعة:</strong></p>
+        <pre><code>cd /etc
+pwd
+
+cd /var/log
+pwd
+
+cd -
+pwd          # العودة إلى /etc
+
+cd -
+pwd          # العودة إلى /var/log</code></pre>
+        <p class="note">
+            جرّب التنقل بين <code>/etc</code> و<code>/var/log</code> عدة مرات أثناء قراءة ملفات config و logs  
+            لتشعر بأهمية <code>cd -</code> في سيناريوهات Incident Response السريعة.</p>
+    </div>
+
+    <!-- Lab / Mini-CTF -->
+    <div class="block">
+        <h2>🔬 Lab &amp; Mini‑CTF</h2>
+
+        <h3>المستوى 1 – بناء pathlab</h3>
+        <pre><code>cd
+mkdir -p pathlab/project/logs
+cd pathlab/project
+pwd
+ls</code></pre>
+        <p class="note">
+            اكتب المسار المطلق الظاهر في <code>pwd</code> (مثال: <code>/home/user/pathlab/project</code>)،  
+            ثم فكّر: ما هو المسار النسبي الذي استُخدم للوصول؟ (الإجابة: <code>pathlab/project</code>).
+        </p>
+
+        <h3>المستوى 2 – مطلق مقابل نسبي على ملف حقيقي</h3>
+        <pre><code>echo "secret1" > logs/notes.txt
+cd
+cat pathlab/project/logs/notes.txt               # مسار نسبي
+cat /home/$USER/pathlab/project/logs/notes.txt   # مسار مطلق (عدّل $USER لو لزم)</code></pre>
+        <p class="note">
+            لاحظ أن السطر الثاني يعمل من أي مكان تقريبًا، بينما الأول يعتمد على أن يكون مجلدك الحالي هو <code>/home/$USER</code>.  
+            هذا الفارق جوهري عند تصميم سكربتات تُشغَّل آليًا (cron, systemd).
+        </p>
+
+        <h3>المستوى 3 – Mini‑CTF: ctf‑paths</h3>
+        <pre><code>cd
+mkdir -p ctf-paths/x/y/z
+echo "keep going" > ctf-paths/x/hint.txt
+echo "almost" > ctf-paths/x/y/readme.txt
+echo "flag{linux-paths-master}" > ctf-paths/x/y/z/flag.txt</code></pre>
+        <ul>
+            <li>من مجلد المنزل، استخدم مسارات نسبية فقط للوصول إلى <code>ctf-paths/x/y/z</code>.</li>
+            <li>بعد الوصول، نفِّذ <code>cat flag.txt</code> للحصول على الـ flag.</li>
+            <li>من مجلد مختلف مثل <code>/tmp</code>، جرّب <code>cat ctf-paths/x/y/z/flag.txt</code> ولاحظ إن كان يعمل؛  
+                إن فشل فكر: كيف يؤثر موضعك الحالي على تفسير المسار النسبي؟</li>
+        </ul>
+        <p class="note">
+            سؤال Mini‑CTF: لو أن مهاجمًا كتب سكربتًا يستخدم مسارًا نسبيًا لسرقة ملف حساس من <code>~/secrets</code>،  
+            كيف يمكن لتغيير مجلد التشغيل من طرف المدافع أن يفسد الهجوم أو يقلّل أثره؟
+        </p>
+    </div>
+
+    <!-- Command Dictionary -->
+    <div class="block">
+        <h2>📖 قاموس أوامر هذا الدرس (Command Dictionary)</h2>
+
+        <h3><code>whoami</code></h3>
+        <p>
+            يعرض اسم المستخدم الحالي الفعّال في الجلسة.  
+            في الخلفية يقرأ هوية العملية من نظام التشغيل ويطبع الـ username المرتبط بـ UID.
+        </p>
+        <ul>
+            <li>لا يحتاج عادةً إلى أوبشنات؛ يستخدم كما هو للتحقق السريع من الصلاحيات قبل تنفيذ أوامر خطرة.</li>
+            <li>مفيد في الأمن للتأكد أنك لست تعمل كمستخدم <code>root</code> عن طريق الخطأ.</li>
+        </ul>
+
+        <h3><code>pwd</code></h3>
+        <p>
+            يعرض المجلد الحالي (Current Working Directory).  
+            يستعلم من الـ shell عن قيمة المتغيّر <code>PWD</code> أو عن المعلومات من النواة ليطبع المسار الكامل.
+        </p>
+        <ul>
+            <li><code>pwd</code> (بدون أوبشن): يعرض المسار المنطقي الحالي كما يراه الـ shell.</li>
+            <li><code>pwd -P</code>: يعرض المسار الفيزيائي بدون تتبّع الـ symlinks (في بعض الـ shells).</li>
+            <li>يُستخدم دائمًا قبل كتابة مسار نسبي للتأكد من نقطة الانطلاق.</li>
+        </ul>
+
+        <h3><code>cd</code></h3>
+        <p>
+            يغيّر المجلد الحالي للجلسة.  
+            كونه builtin يسمح له بتعديل حالة الـ shell نفسها (متغيّر <code>PWD</code>) دون استدعاء برنامج خارجي.
+        </p>
+        <ul>
+            <li><code>cd</code>: الانتقال إلى مجلد المنزل <code>$HOME</code>.</li>
+            <li><code>cd /path/to/dir</code>: استخدام مسار مطلق للوصول إلى مجلد محدد.</li>
+            <li><code>cd relative/dir</code>: استخدام مسار نسبي انطلاقًا من المجلد الحالي.</li>
+            <li><code>cd ..</code>: الصعود إلى المجلد الأب.</li>
+            <li><code>cd -</code>: العودة إلى آخر مجلد كنت فيه (تبديل بين مسارين).</li>
+        </ul>
+
+        <h3><code>ls</code> و <code>ls -la</code></h3>
+        <p>
+            يعرض محتويات المجلد. النسخة <code>ls -la</code> تعطي تفاصيل أعمق عن الصلاحيات والمالكين.  
+            في الخلفية يقرأ مداخل الدليل من نظام الملفات ويحوّل صلاحياتها إلى صيغة نصية (مثل <code>drwxr-xr-x</code>).
+        </p>
+        <ul>
+            <li><code>ls</code>: عرض الأسماء فقط للملفات والمجلدات غير المخفية.</li>
+            <li><code>ls -l</code>: عرض تفصيلي مع الأذونات والمالكين والحجم والتاريخ.</li>
+            <li><code>ls -a</code>: إضافة الملفات المخفية (التي تبدأ بـ <code>.</code>).</li>
+            <li><code>ls -la</code>: دمج العرض التفصيلي مع الملفات المخفية؛ الأفضل للتحليل الأمني الأولي.</li>
+        </ul>
+
+        <h3><code>df -h</code></h3>
+        <p>
+            يعرض استخدام الأقراص (Disk Free).  
+            يقرأ جداول الـ mount points من النظام ويحسب المساحة الكليّة والمستخدمة والمتاحة لكل نظام ملفات.
+        </p>
+        <ul>
+            <li><code>df</code>: عرض بالأرقام الخام (بالـ 1K blocks عادة).</li>
+            <li><code>df -h</code>: <em>human‑readable</em>؛ يحوّل القيم إلى MB / GB ليسهل تفسيرها.</li>
+            <li><code>df -T</code>: (في أنظمة كثيرة) يعرض نوع نظام الملفات (ext4, tmpfs...).</li>
+            <li>مفيد لمراقبة الامتلاء الذي قد يوقف تسجيل الـ logs أو يخفي أثر هجمة.</li>
+        </ul>
+    </div>
+
+    <!-- Real Scenarios -->
+    <div class="block">
+        <h2>🌍 سيناريوهات واقعية لأوامر هذا الدرس (Real Scenarios)</h2>
+
+        <h3>سيناريو 1 – تحقيق في حادث أمني باستخدام <code>cd</code> و<code>ls -la</code></h3>
+        <p>
+            مسؤول أمن يحقق في تغييرات مشبوهة في إعدادات النظام، ويتنقل بسرعة بين مجلد الإعدادات <code>/etc</code> ومجلد السجلات <code>/var/log</code>.
+        </p>
+        <pre><code>cd /etc
+ls -la ssh
+cd /var/log
+ls -la auth.log*
+cd -
+ls -la</code></pre>
+        <p class="note">
+            • <code>cd /etc</code>: الانتقال لمسار مطلق حيث ملفات الإعداد.  
+            • <code>ls -la ssh</code>: رؤية جميع ملفات إعدادات SSH المخفية مع تواريخ التعديل والمالكين.  
+            • <code>cd /var/log</code>: الانتقال لمسار مطلق لمجلد السجلات.  
+            • <code>ls -la auth.log*</code>: استعراض ملفات توثيق الدخول لاكتشاف محاولات فشل متكررة.  
+            • <code>cd -</code> ثم <code>ls -la</code>: الرجوع لـ <code>/etc</code> لفحص ملفات تغيّرت في نفس توقيت محاولات الدخول.
+        </p>
+
+        <h3>سيناريو 2 – سكربت نسخ احتياطي واعتماد على مسار مطلق</h3>
+        <p>
+            مسؤول نظام يريد التأكد أنّ سكربت النسخ الاحتياطي لا يفشل إذا تم تشغيله من cron أو من مستخدم آخر، فيستخدم مسارًا مطلقًا مع <code>df -h</code> للمراقبة.
+        </p>
+        <pre><code>cd /var/log
+df -h /var
+tar czf /backup/logs.tar.gz .</code></pre>
+        <p class="note">
+            • <code>cd /var/log</code>: يضمن أن الأرشفة تتم من المجلد الصحيح دائمًا.  
+            • <code>df -h /var</code>: التحقق من أن القسم الذي يحتوي على السجلات يملك مساحة كافية قبل الأرشفة.  
+            • <code>tar czf /backup/logs.tar.gz .</code>: إنشاء أرشيف مضغوط لكل ملفات السجلات في المسار الحالي، نقطة <code>.</code> تشير للمجلد الحالي الذي ضُبط مسبقًا بمسار مطلق.
+        </p>
+
+        <h3>سيناريو 3 – لاعب CTF يتعامل مع مسار نسبي حساس</h3>
+        <p>
+            في تحدّي CTF، يُطلب منك الوصول إلى ملف flag داخل شجرة مجلدات عميقة دون استخدام مسار مطلق، مما يجبرك على فهم دقيق لـ <code>..</code> و <code>pwd</code>.
+        </p>
+        <pre><code>cd ~/ctf-paths/x/y/z
+pwd
+cat flag.txt</code></pre>
+        <p class="note">
+            • <code>cd ~/ctf-paths/x/y/z</code>: استخدام <code>~</code> لمسار نسبي منظم من مجلد المنزل.  
+            • <code>pwd</code>: تأكيد أنك بالفعل في المجلد الصحيح قبل قراءة أي ملف.  
+            • <code>cat flag.txt</code>: عرض محتوى flag بعد التأكد من المسار لتجنّب رسائل "No such file or directory".
+        </p>
+    </div>
+
+    <!-- Quiz -->
+    <div class="block">
+        <h2>🧠 Quiz تفاعلي – Day 2 Paths</h2>
+
+        <div class="quiz-q">
+            <strong>1. أي من التالية هو مسار مطلق صحيح لمجلد اسمه <code>project</code> داخل مجلد المستخدم؟</strong><br>
+            <label><input type="radio" name="q1" value="a"> <code>project</code></label><br>
+            <label><input type="radio" name="q1" value="b"> <code>/home/user/project</code></label><br>
+            <label><input type="radio" name="q1" value="c"> <code>../project</code></label><br>
+        </div>
+
+        <div class="quiz-q">
+            <strong>2. إذا كان <code>pwd</code> يعطي <code>/home/user/lab/day2/a/b</code>، ماذا يفعل الأمر <code>cd ../..</code>؟</strong><br>
+            <label><input type="radio" name="q2" value="a"> ينتقل إلى <code>/home/user/lab</code></label><br>
+            <label><input type="radio" name="q2" value="b"> ينتقل إلى <code>/home/user</code></label><br>
+            <label><input type="radio" name="q2" value="c"> لا يغيّر المجلد الحالي</label><br>
+        </div>
+
+        <div class="quiz-q">
+            <strong>3. ما الفائدة الأساسية من <code>cd -</code> في العمل اليومي؟</strong><br>
+            <label><input type="radio" name="q3" value="a"> تنظيف الـ history للأوامر</label><br>
+            <label><input type="radio" name="q3" value="b"> التنقل السريع بين آخر مجلدين استخدمتهما</label><br>
+            <label><input type="radio" name="q3" value="c"> حذف المجلد الحالي</label><br>
+        </div>
+
+        <div class="quiz-q">
+            <strong>4. أي جملة أدق من ناحية أمان السكربتات؟</strong><br>
+            <label><input type="radio" name="q4" value="a"> المسارات النسبية دائمًا أكثر أمانًا لأنها أقصر.</label><br>
+            <label><input type="radio" name="q4" value="b"> المسارات المطلقة تقلّل احتمال استهداف مجلد خاطئ عند تشغيل السكربت من موقع غير متوقّع.</label><br>
+            <label><input type="radio" name="q4" value="c"> لا فرق أمنيًا بين النوعين إطلاقًا.</label><br>
+        </div>
+
+        <div class="quiz-q">
+            <strong>5. إذا كان <code>pwd</code> هو <code>/home/user</code>، أي أمر يستخدم مسارًا نسبيًا صحيحًا للوصول إلى <code>/home/user/pathlab/project/logs/notes.txt</code>؟</strong><br>
+            <label><input type="radio" name="q5" value="a"> <code>cat /pathlab/project/logs/notes.txt</code></label><br>
+            <label><input type="radio" name="q5" value="b"> <code>cat pathlab/project/logs/notes.txt</code></label><br>
+            <label><input type="radio" name="q5" value="c"> <code>cat ../pathlab/project/logs/notes.txt</code></label><br>
+        </div>
+
+        <button onclick="gradeQuiz()">حساب النتيجة</button>
+        <div id="quizResult" class="result-box" style="display:none;"></div>
+    </div>
+
+    <script>
+        function gradeQuiz() {
+            let score = 0;
+            const total = 5;
+
+            const q1 = document.querySelector('input[name="q1"]:checked');
+            const q2 = document.querySelector('input[name="q2"]:checked');
+            const q3 = document.querySelector('input[name="q3"]:checked');
+            const q4 = document.querySelector('input[name="q4"]:checked');
+            const q5 = document.querySelector('input[name="q5"]:checked');
+
+            if (q1 && q1.value === 'b') score++;
+            if (q2 && q2.value === 'a') score++;
+            if (q3 && q3.value === 'b') score++;
+            if (q4 && q4.value === 'b') score++;
+            if (q5 && q5.value === 'b') score++;
+
+            const percent = Math.round((score / total) * 100);
+            let grade = 'F';
+            if (percent >= 90) grade = 'A';
+            else if (percent >= 80) grade = 'B';
+            else if (percent >= 70) grade = 'C';
+            else if (percent >= 60) grade = 'D';
+
+            const box = document.getElementById('quizResult');
+            box.style.display = 'block';
+            box.innerHTML =
+                '<strong>✅ نتيجة Quiz Day 2 – Paths</strong><br>' +
+                score + '/' + total + ' إجابات صحيحة<br>' +
+                'النسبة: ' + percent + '% – التقدير: <strong>' + grade + '</strong><br><br>' +
+                '📸 التعليمات: خُذ Screenshot لهذا الصندوق بعد ظهور النتيجة، ' +
+                'ثم خُذ Screenshot أخرى للـ Terminal أثناء تنفيذ تمارين اليوم، ' +
+                'وأرسلهما مع الجملة: "درس اليوم 2 مكتمل ✓ ساعات: 4" في Perplexity لتأكيد التقدّم.';
+        }
+    </script>
+</body>
+</html>

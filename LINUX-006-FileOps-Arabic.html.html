@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>Linux Day 6/210 - Process Management & Job Control</title>
+    <style>
+        body {
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            direction: rtl;
+            background: #020617;
+            color: #e5e7eb;
+            margin: 0;
+            padding: 16px;
+            line-height: 1.7;
+        }
+        h1, h2 { color: #38bdf8; }
+        h3 { color: #60a5fa; }
+        h4 { color: #a5b4fc; }
+        .block {
+            border: 1px solid #1f2937;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 12px;
+            background: #020617;
+            box-shadow: 0 0 0 1px #0f172a;
+        }
+        code {
+            background: #0b1120;
+            padding: 2px 6px;
+            border-radius: 4px;
+            direction: ltr;
+            display: inline-block;
+            font-family: "Courier New", monospace;
+            font-size: 0.9rem;
+        }
+        pre {
+            background: #020617;
+            padding: 14px;
+            border-radius: 8px;
+            overflow-x: auto;
+            direction: ltr;
+            font-family: "Courier New", monospace;
+            font-size: 0.9rem;
+            border-left: 4px solid #38bdf8;
+        }
+        .note {
+            color: #a5b4fc;
+            font-size: 0.9rem;
+            font-style: italic;
+        }
+        ul { padding-right: 20px; }
+        button {
+            padding: 10px 22px;
+            border-radius: 8px;
+            border: none;
+            background: #22c55e;
+            color: #022c22;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+        button:hover { background: #16a34a; }
+        .quiz-q {
+            margin-bottom: 18px;
+            padding: 12px;
+            background: #020617;
+            border-radius: 10px;
+            border: 1px solid #1e293b;
+        }
+        .result-box {
+            margin-top: 20px;
+            padding: 16px;
+            border-radius: 8px;
+            background: #022c22;
+            border: 2px solid #22c55e;
+            display: none;
+        }
+        .command-title {
+            border-bottom: 2px solid #38bdf8;
+            padding-bottom: 4px;
+            margin-bottom: 10px;
+        }
+        .scenario {
+            background: #111827;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 10px 0;
+            border: 1px solid #1f2937;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🔴 Linux Day 6/210 | أسبوع 1/30</h1>
+    <h2>Process Management &amp; Job Control (ps, top, kill, jobs)</h2>
+
+    <div class="block">
+        <h3>🎯 Objectives</h3>
+        <ul>
+            <li>فهم مفهوم <strong>process</strong> و<strong>PID</strong> ودور الـ kernel في جدولة العمليات وإدارتها.</li>
+            <li>استخدام أوامر مثل <code>ps</code> و<code>top</code> لمراقبة العمليات واستهلاك الموارد.</li>
+            <li>تعلم إرسال <strong>signals</strong> باستخدام <code>kill</code> (مثل <code>SIGTERM</code> و<code>SIGKILL</code>) لإنهاء العمليات المتجمّدة أو الخبيثة.</li>
+            <li>التحكم في <strong>jobs</strong> داخل الـ Shell باستخدام <code>Ctrl+Z</code>, <code>bg</code>, <code>fg</code>, <code>jobs</code>.</li>
+            <li>تطبيق إدارة العمليات في سيناريوهات أمنية مثل التعامل مع malware أو أدوات scanning تستهلك النظام.</li>
+        </ul>
+    </div>
+
+    <div class="block">
+        <h3>📚 Theory – ما هي العملية؟</h3>
+        <p>عندما تشغّل برنامجًا في لينكس (مثل <code>grep</code> أو <code>nmap</code>)، يقوم الـ kernel بإنشاء <strong>process</strong>: نسخة من الكود في الذاكرة لها مساحة بيانات خاصة، ومؤشرات سجلات CPU، وجداول للملفات المفتوحة، ورقم تعريفي يُسمى <strong>PID</strong> (Process ID). كل عملية يمكن أن تُنشئ عمليات أبناء (child processes) عبر system calls مثل <code>fork()</code> و<code>execve()</code>، والـ kernel يدير جدولة هذه العمليات على أنوية الـ CPU.</p>
+        <p>يتم التحكم في مصير العملية عن طريق <strong>signals</strong> وهي رسائل بسيطة يرسلها النظام أو المستخدم، مثل <code>SIGTERM</code> لطلب إنهاء لطيف، <code>SIGKILL</code> لإيقاف فوري لا يمكن اعتراضه، و<code>SIGSTOP</code>/<code>SIGCONT</code> لإيقاف واستئناف التنفيذ. أدوات مثل <code>ps</code> و<code>top</code> تقرأ جداول العمليات من الـ kernel (غالباً من ملفات افتراضية مثل <code>/proc</code>) وتعرض snapshot للحالة الحالية، بينما يقوم <code>kill</code> بإرسال signal إلى PID معين.</p>
+        <p>داخل الـ Shell (مثل <code>bash</code>) هناك مفهوم إضافي هو <strong>job control</strong>. أي أمر تعمل عليه من الـ Terminal يمكن أن يكون job في foreground أو background. عندما تضغط <code>Ctrl+Z</code> يرسل الـ shell إشارة <code>SIGTSTP</code> لإيقاف العملية مؤقتًا، ثم يمكن متابعتها في الخلفية بـ <code>bg</code> أو إرجاعها للواجهة بـ <code>fg</code>. هذه الآلية حيوية لمختبر اختراق أو مسؤول نظام يحتاج لإدارة عدة أوامر طويلة (scans, backups, brute-force detection) دون فتح عشرات الجلسات.</p>
+        <p class="note">سؤال تفكير: لماذا يُفضَّل استخدام <code>SIGTERM</code> أولاً قبل <code>SIGKILL</code> عند إيقاف عملية؟ فكّر في فرص حفظ البيانات المغلقة بشكل سليم، وإتاحة وقت للبرنامج لتنظيف الملفات المؤقتة.</p>
+    </div>
+
+    <div class="block">
+        <h3>💻 Practical Steps – الأساسيات</h3>
+
+        <p><strong>1) استكشاف العمليات الحالية بـ ps</strong></p>
+        <pre><code># عرض العمليات المرتبطة بالـ shell الحالي فقط
+ps
+
+# عرض كل عمليات النظام في snapshot واحدة
+ps aux | head
+
+# البحث عن جميع جلسات bash
+ps aux | grep bash</code></pre>
+        <p class="note">الأعمدة المهمة: <code>USER</code> (مالك العملية)، <code>PID</code> (الرقم التعريفي)، <code>%CPU</code>, <code>%MEM</code>, <code>COMMAND</code>. لاحظ أن كل أمر في الـ Terminal ينتج عملية واحدة على الأقل.</p>
+
+        <p><strong>2) مراقبة حيّة باستخدام top</strong></p>
+        <pre><code># تشغيل top
+top</code></pre>
+        <p class="note">داخل <code>top</code> جرّب: حرف <code>P</code> لترتيب حسب CPU، حرف <code>M</code> لترتيب حسب الذاكرة، و<code>q</code> للخروج. لاحظ أن العمليات تتغير لحظيًا؛ هذه الأداة هي أول ما يفتحه مسؤول نظام عندما يسمع أن "السيرفر بطيء".</p>
+
+        <p><strong>3) إنشاء عملية بطيئة في الخلفية</strong></p>
+        <pre><code># من نفس الـ Terminal
+sleep 300 &amp;
+
+# عرض jobs الحالية
+jobs
+
+# تحديد PID عملية sleep
+ps aux | grep "sleep 300" | grep -v grep</code></pre>
+        <p class="note">الرمز <code>&amp;</code> يخبر الـ shell أن يشغّل الأمر في الخلفية فورًا كـ job، مما يسمح لك بالاستمرار في كتابة أوامر جديدة بينما العملية ما زالت تعمل.</p>
+
+        <p><strong>4) إنهاء العملية باستخدام kill</strong></p>
+        <pre><code># استبدل PID_here بالرقم الذي رأيته في ps aux
+kill PID_here          # يرسل SIGTERM (إنهاء لطيف)
+ps aux | grep sleep
+
+# إن لم تتوقف العملية:
+kill -9 PID_here       # يرسل SIGKILL (إيقاف إجباري)</code></pre>
+        <p class="note">في التحقيقات الأمنية، قد تجد process مشبوهة مثل <code>crypto-miner</code> تستهلك CPU بالكامل. الاستراتيجية عادة: مراقبة بالـ <code>top</code> &rarr; تحديد PID &rarr; تجربة <code>kill</code> العادي &rarr; ثم <code>kill -9</code> إذا رفضت الاستجابة.</p>
+
+        <p><strong>5) تجربة job control: Ctrl+Z, bg, fg</strong></p>
+        <pre><code># شغّل أمر طويل في foreground
+sleep 120
+
+# أثناء عمله اضغط:  Ctrl+Z
+jobs
+bg %1         # إرسال job 1 إلى الخلفية
+jobs
+fg %1         # إرجاعها للواجهة</code></pre>
+        <p class="note">تخيل أنك تشغّل <code>nmap</code> أو script لفحص logs؛ يمكنك إيقافه مؤقتًا، ثم إرساله للخلفية، والعودة له لاحقًا دون خسارة التقدم.</p>
+    </div>
+
+    <div class="block">
+        <h3>🔬 Lab / Mini‑CTF – صيد Process مشبوه</h3>
+
+        <p><strong>تمرين 1 – تشغيل "Malware" تجريبي</strong></p>
+        <pre><code># في Terminal 1
+yes "MALWARE_TRAFFIC" &gt; /dev/null</code></pre>
+        <p class="note">الأمر <code>yes</code> يكرر النص إلى ما لا نهاية؛ هنا نمثل به malware يكتب بيانات بلا توقف. تحويل المخرجات إلى <code>/dev/null</code> يمنع امتلاء الشاشة لكنه يبقي استهلاك الـ CPU مرتفعاً.</p>
+
+        <p><strong>تمرين 2 – اكتشاف العملية من Terminal آخر</strong></p>
+        <pre><code># في Terminal 2
+top              # ابحث عن yes في قائمة العمليات
+
+# ثم استخدم ps لتحديد PID بدقة
+ps aux | grep yes | grep -v grep</code></pre>
+        <p class="note">حاول ملاحظة نسبة الـ CPU التي يستهلكها <code>yes</code>. في أنظمة حقيقية قد ترى 90–100% على نواة كاملة، ما يجعل الجهاز بطيئًا جدًا.</p>
+
+        <p><strong>تمرين 3 – إيقاف الـ "Malware"</strong></p>
+        <pre><code># استبدل PID_yes بالرقم الذي رأيته
+kill PID_yes
+sleep 2
+ps aux | grep yes | grep -v grep
+
+# إن بقيت العملية حيّة:
+kill -9 PID_yes
+ps aux | grep yes | grep -v grep</code></pre>
+        <p class="note">إذا اختفت العملية من قائمة <code>ps</code> ومن <code>top</code>، فهذا يعني أن signal وصلت وتمت معالجة الطلب. في تحقيق حقيقي، توثيق PID، الوقت، والأمر المستخدم جزء مهم من التقرير النهائي.</p>
+
+        <p><strong>تمرين 4 – تقرير Incident بسيط</strong></p>
+        <pre><code>cat &lt;&lt;EOF &gt; incident_process_day6.txt
+Incident: High CPU usage due to suspicious yes process
+Most suspicious PID: PID_yes_here
+Actions:
+  - Observed process in top and ps aux
+  - Sent SIGTERM via kill
+  - Sent SIGKILL via kill -9 when needed
+Result:
+  - Process terminated and removed from process list
+EOF
+
+cat incident_process_day6.txt</code></pre>
+        <p class="note">يمكنك تعديل النص ليعكس ما رأيته على جهازك فعلاً. تخيّل أن هذا التقرير يتم رفعه إلى مدير الفريق أو مرفق مع أدلة رقمية في قضية حقيقية.</p>
+    </div>
+
+    <div class="block">
+        <h3>📸 Screenshot Instructions</h3>
+        <ul>
+            <li>Screenshot من <code>top</code> أثناء تشغيل عملية <code>yes "MALWARE_TRAFFIC"</code> يوضح PID ونسبة استهلاك الـ CPU.</li>
+            <li>Screenshot لأوامر <code>ps aux | grep yes</code> قبل وبعد استخدام <code>kill</code> و<code>kill -9</code>.</li>
+            <li>Screenshot لمحتوى الملف <code>incident_process_day6.txt</code> بعد إنشائه.</li>
+            <li>أرسل الـ Screenshots مع الجملة: <strong>"درس Day 6 مكتمل ✓ ساعات: 4"</strong>.</li>
+        </ul>
+        <p class="note">كلما كانت الـ Screenshots تحتوي على الأوامر + PID + النتيجة بوضوح، كلما كان تقييم مهاراتك في إدارة العمليات أقرب لواقع بيئة عمل حقيقية.</p>
+    </div>
+
+    <div class="block">
+        <h3>📖 قاموس أوامر هذا الدرس (Command Dictionary)</h3>
+
+        <div class="command-title">
+            <h4><code>ps</code></h4>
+        </div>
+        <p><strong>وصف:</strong> عرض قائمة بالعمليات الحالية. في الخلفية يقرأ <code>ps</code> معلومات من الـ kernel (غالباً من <code>/proc</code>) ويطبع snapshot ثابت في لحظة معينة، على عكس <code>top</code> الذي يحدّث باستمرار.</p>
+        <ul>
+            <li><code>ps</code>: يعرض العمليات المرتبطة بالـ shell الحالي فقط.</li>
+            <li><code>ps aux</code>: يعرض كل عمليات النظام مع المالك، PID، نسبة CPU والذاكرة.</li>
+            <li><code>ps -u USERNAME</code>: يعرض العمليات الخاصة بمستخدم معيّن.</li>
+            <li><code>ps aux | grep pattern</code>: بحث عن عمليات يحتوي اسمها على pattern معين.</li>
+        </ul>
+
+        <div class="command-title">
+            <h4><code>top</code></h4>
+        </div>
+        <p><strong>وصف:</strong> أداة تفاعلية تعرض العمليات الأكثر استهلاكًا للموارد في الوقت الحقيقي. تقرأ بشكل دوري من جداول العمليات وتعيد رسم الشاشة بسطر واحد لكل عملية.</p>
+        <ul>
+            <li><code>top</code>: بدء العرض الافتراضي لجميع العمليات.</li>
+            <li>داخل <code>top</code>:
+                <ul>
+                    <li><code>P</code>: ترتيب حسب نسبة الـ CPU.</li>
+                    <li><code>M</code>: ترتيب حسب استهلاك الذاكرة.</li>
+                    <li><code>k</code>: إرسال signal لعملية عبر PID (مثل kill لكن من داخل top).</li>
+                    <li><code>q</code>: الخروج من <code>top</code>.</li>
+                </ul>
+            </li>
+        </ul>
+
+        <div class="command-title">
+            <h4><code>kill</code></h4>
+        </div>
+        <p><strong>وصف:</strong> يرسل signal إلى عملية محددة بالـ PID. افتراضيًا يرسل <code>SIGTERM</code> الذي يطلب من البرنامج إنهاء نفسه بنظافة، ويمكن تغيير نوع signal للتعامل مع حالات تجمّد أو سوء سلوك.</p>
+        <ul>
+            <li><code>kill PID</code>: إرسال <code>SIGTERM</code> لإنهاء العملية بشكل طبيعي.</li>
+            <li><code>kill -9 PID</code>: إرسال <code>SIGKILL</code> (إيقاف فوري لا يمكن التقاطه).</li>
+            <li><code>kill -STOP PID</code>: إيقاف العملية (مثل <code>Ctrl+Z</code> لكن من سطر الأوامر).</li>
+            <li><code>kill -CONT PID</code>: استئناف العملية بعد إيقافها.</li>
+            <li><code>kill -l</code>: عرض قائمة كاملة بكل الإشارات المتاحة.</li>
+        </ul>
+
+        <div class="command-title">
+            <h4><code>yes</code></h4>
+        </div>
+        <p><strong>وصف:</strong> يطبع نصًا مكررًا بلا توقف حتى يتم إيقافه. يُستخدم عادة لاختبار سرعة I/O أو الإجهاد (stress)، وفي الدرس استُخدم لمحاكاة process خبيثة تستهلك الـ CPU.</p>
+        <ul>
+            <li><code>yes</code>: يكرر حرف <code>y</code> بلا توقف.</li>
+            <li><code>yes "TEXT"</code>: يكرر النص المحدد.</li>
+            <li><code>yes &gt; /dev/null</code>: يستهلك CPU دون إغراق الشاشة بالنصوص.</li>
+        </ul>
+
+        <div class="command-title">
+            <h4><code>jobs</code>, <code>bg</code>, <code>fg</code></h4>
+        </div>
+        <p><strong>وصف:</strong> أوامر إدارة الـ jobs في الـ shell. الـ shell يحتفظ بقائمة بالأوامر التي تعمل في الخلفية أو المتوقفة، ويمكن التحكم فيها دون معرفة PID، فقط برقم job.</p>
+        <ul>
+            <li><code>jobs</code>: عرض كل jobs مع حالتها (Running, Stopped).</li>
+            <li><code>bg %1</code>: استئناف job رقم 1 في الخلفية.</li>
+            <li><code>fg %1</code>: استئناف job رقم 1 في foreground.</li>
+            <li><code>Ctrl+Z</code>: إرسال <code>SIGTSTP</code> لإيقاف job الحالية ووضعها كـ Stopped.</li>
+        </ul>
+    </div>
+
+    <div class="block">
+        <h3>🌍 سيناريوهات واقعية لأوامر هذا الدرس</h3>
+
+        <div class="scenario">
+            <h4><strong>1) مسؤول نظام يوقف Crypto‑Miner يستهلك السيرفر</strong></h4>
+            <pre><code>top</code></pre>
+            <p><strong>السيناريو:</strong> مستخدم يشتكي من بطء شديد. يفتح مسؤول النظام <code>top</code> ليجد عملية غريبة باسم <code>xmrig</code> تستهلك 100% من أحد الأنوية، ما يشير إلى crypto‑miner تم تحميله خلسة.</p>
+            <p><strong>الشرح:</strong> في <code>top</code> يحدد المسؤول PID الخاص بـ <code>xmrig</code> في عمود <code>PID</code>، ويتابع نسبة <code>%CPU</code> المرتفعة. هذا يعطي دليلًا على وجود استغلال، ويكون الخطوة الأولى قبل عزل السيرفر وفحص بقية الأدلة.</p>
+        </div>
+
+        <div class="scenario">
+            <h4><strong>2) إنهاء عملية خبيثة مع توثيق PID</strong></h4>
+            <pre><code>ps aux | grep xmrig | grep -v grep
+kill PID_xmrig
+sleep 2
+ps aux | grep xmrig | grep -v grep</code></pre>
+            <p><strong>السيناريو:</strong> بعد اكتشاف miner في <code>top</code>، يحتاج محلل Incident Response إلى إيقافه دون إسقاط عمليات أخرى، مع توثيق PID والوقت لإضافته إلى التقرير.</p>
+            <p><strong>الشرح:</strong> الأمر <code>ps aux | grep xmrig</code> يحدد السطر الذي يحتوي على عملية miner ويرجع PID بدقة. ثم <code>kill PID_xmrig</code> يرسل <code>SIGTERM</code> لإنهائها بلطف. بعد ثانيتين، يتحقق المحلل من زوالها باستخدام <code>ps</code> مرة أخرى. إذا بقيت العملية، يمكن الانتقال إلى <code>kill -9</code>، لكن ذلك قد يحرم الفريق من فرصة رؤية سلوك cleanup الخاص بالـ malware.</p>
+        </div>
+
+        <div class="scenario">
+            <h4><strong>3) تشغيل Nmap Scan طويل في الخلفية</strong></h4>
+            <pre><code>nmap -sV -p- 10.10.10.0/24
+# بعد بداية الفحص اضغط: Ctrl+Z
+bg %1
+jobs
+fg %1</code></pre>
+            <p><strong>السيناريو:</strong> مختبر اختراق يشغّل فحص منافذ كامل على شبكة كاملة؛ الفحص قد يستغرق 30–40 دقيقة. يريد خلال ذلك تنفيذ أوامر أخرى في نفس الـ shell دون إلغاء الفحص.</p>
+            <p><strong>الشرح:</strong> بعد بدء <code>nmap</code>، ضغط <code>Ctrl+Z</code> يوقف العملية مؤقتًا ويحوّلها إلى job متوقفة. باستخدام <code>bg %1</code> يعيد تشغيلها في الخلفية، فيستمر الفحص بينما يعود الـ prompt لقبول أوامر أخرى. عبر <code>jobs</code> يمكن متابعة حالة الفحص، و<code>fg %1</code> يعيد إخراج <code>nmap</code> إلى الواجهة لرؤية النتائج عند الرغبة.</p>
+        </div>
+
+        <div class="scenario">
+            <h4><strong>4) اختبار تحمّل CPU لأداة تشفير جديدة</strong></h4>
+            <pre><code>yes "STRESS_TEST" &gt; /dev/null &amp;
+top</code></pre>
+            <p><strong>السيناريو:</strong> مطوّر أداة تشفير يريد مقارنة استهلاك CPU لأداته مع أداة أخرى، فيستخدم <code>yes</code> كاختبار مرجعي بسيط قبل تشغيل الأداة الحقيقية.</p>
+            <p><strong>الشرح:</strong> الأمر <code>yes "STRESS_TEST" &gt; /dev/null &amp;</code> يشغّل عملية تستخدم دورة CPU كاملة تقريبًا دون مخرجات على الشاشة بفضل إعادة التوجيه إلى <code>/dev/null</code>. بعدها يفتح <code>top</code> لملاحظة كيف يظهر PID الخاص بـ <code>yes</code> بنسبة CPU عالية، وهذا يعطي فكرة عن حدود ما يمكن أن يحمله النظام من عمليات كثيفة الحساب.</p>
+        </div>
+    </div>
+
+    <div class="block">
+        <h3>🧠 Quiz – Process Management &amp; Job Control</h3>
+
+        <div class="quiz-q">
+            <strong>1. ما هو الـ PID في سياق العمليات؟</strong><br>
+            <label><input type="radio" name="q1" value="a"> اسم المستخدم الذي شغّل العملية</label><br>
+            <label><input type="radio" name="q1" value="b"> رقم تعريفي فريد لكل عملية في النظام</label><br>
+            <label><input type="radio" name="q1" value="c"> نوع الإشارة (signal) المرسلة للعملية</label>
+        </div>
+
+        <div class="quiz-q">
+            <strong>2. أي أمر يعطيك snapshot لكل العمليات مع المالك و%CPU و%MEM؟</strong><br>
+            <label><input type="radio" name="q2" value="a"> <code>ps</code></label><br>
+            <label><input type="radio" name="q2" value="b"> <code>ps aux</code></label><br>
+            <label><input type="radio" name="q2" value="c"> <code>jobs</code></label>
+        </div>
+
+        <div class="quiz-q">
+            <strong>3. ماذا يفعل الأمر <code>kill -9 PID</code> عادة؟</strong><br>
+            <label><input type="radio" name="q3" value="a"> يرسل إشارة لطيفة تسمح للبرنامج بحفظ البيانات</label><br>
+            <label><input type="radio" name="q3" value="b"> يرسل إشارة لا يمكن التقاطها تؤدي لإيقاف فوري للعملية</label><br>
+            <label><input type="radio" name="q3" value="c"> يوقف العملية مؤقتًا فقط دون إنهائها</label>
+        </div>
+
+        <div class="quiz-q">
+            <strong>4. ما تأثير ضغط <code>Ctrl+Z</code> أثناء تشغيل أمر في الـ shell؟</strong><br>
+            <label><input type="radio" name="q4" value="a"> يرسل SIGKILL وينهي العملية فورًا</label><br>
+            <label><input type="radio" name="q4" value="b"> يوقف العملية مؤقتًا ويحوّلها إلى job بالحالة Stopped</label><br>
+            <label><input type="radio" name="q4" value="c"> يرسل العملية تلقائيًا إلى الخلفية وهي ما زالت تعمل</label>
+        </div>
+
+        <div class="quiz-q">
+            <strong>5. أي pipeline أدق لاكتشاف عملية باسم <code>yes</code> مع استثناء سطر grep نفسه؟</strong><br>
+            <label><input type="radio" name="q5" value="a"> <code>ps aux | grep yes</code></label><br>
+            <label><input type="radio" name="q5" value="b"> <code>ps aux | grep yes | grep -v grep</code></label><br>
+            <label><input type="radio" name="q5" value="c"> <code>top | grep yes</code></label>
+        </div>
+
+        <div class="quiz-q">
+            <strong>6. لماذا قد تفضّل استخدام <code>kill PID</code> قبل <code>kill -9 PID</code>؟</strong><br>
+            <label><input type="radio" name="q6" value="a"> لأن <code>kill -9</code> يعمل فقط مع المستخدم root</label><br>
+            <label><input type="radio" name="q6" value="b"> لأن <code>SIGTERM</code> يسمح للبرنامج بتنظيف نفسه وحفظ البيانات قبل الخروج</label><br>
+            <label><input type="radio" name="q6" value="c"> لا فرق بينهما، كلاهما يرسل نفس الإشارة</label>
+        </div>
+
+        <button onclick="gradeQuiz()">حساب النتيجة</button>
+        <div id="quizResult" class="result-box"></div>
+        <p class="note">📸 بعد الضغط على زر "حساب النتيجة" خذ Screenshot لهذا الصندوق + Screenshot للـ Terminal أثناء تنفيذ تمارين اليوم، ثم أرسلهم إلى Perplexity مع الجملة: <strong>"درس Day 6 مكتمل ✓ ساعات: 4"</strong>.</p>
+    </div>
+
+    <script>
+        function gradeQuiz() {
+            let score = 0;
+            const total = 6;
+
+            const q1 = document.querySelector('input[name="q1"]:checked');
+            const q2 = document.querySelector('input[name="q2"]:checked');
+            const q3 = document.querySelector('input[name="q3"]:checked');
+            const q4 = document.querySelector('input[name="q4"]:checked');
+            const q5 = document.querySelector('input[name="q5"]:checked');
+            const q6 = document.querySelector('input[name="q6"]:checked');
+
+            if (q1 && q1.value === 'b') score++;
+            if (q2 && q2.value === 'b') score++;
+            if (q3 && q3.value === 'b') score++;
+            if (q4 && q4.value === 'b') score++;
+            if (q5 && q5.value === 'b') score++;
+            if (q6 && q6.value === 'b') score++;
+
+            const percent = Math.round((score / total) * 100);
+            let grade = 'F';
+            if (percent >= 90) grade = 'A';
+            else if (percent >= 80) grade = 'B';
+            else if (percent >= 70) grade = 'C';
+            else if (percent >= 60) grade = 'D';
+
+            const box = document.getElementById('quizResult');
+            box.style.display = 'block';
+            box.innerHTML = `
+                <strong>Quiz Day 6 - Process Management &amp; Job Control</strong><br>
+                ${score}/${total} إجابات صحيحة<br>
+                النسبة: ${percent}%<br>
+                التقدير: ${grade}<br><br>
+                📸 خذ Screenshot لهذا الصندوق + Screenshot للـ Terminal وأرسلهما إلى Perplexity لتوثيق إنجاز درس اليوم.
+            `;
+        }
+    </script>
+
+</body>
+</html>

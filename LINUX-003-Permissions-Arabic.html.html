@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>Linux Day 3/210 - Permissions & chmod + File Operations</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            direction: rtl;
+            background: #0f172a;
+            color: #e5e7eb;
+            margin: 0;
+            padding: 16px;
+            line-height: 1.6;
+        }
+        h1, h2 { color: #38bdf8; }
+        h3 { color: #60a5fa; }
+        .block {
+            border: 1px solid #334155;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 12px;
+            background: #020617;
+        }
+        code {
+            background: #111827;
+            padding: 4px 8px;
+            border-radius: 6px;
+            direction: ltr;
+            display: inline-block;
+            font-family: 'Courier New', monospace;
+        }
+        pre {
+            background: #111827;
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            direction: ltr;
+            border-left: 4px solid #38bdf8;
+        }
+        .note {
+            color: #a5b4fc;
+            font-size: 0.9rem;
+            font-style: italic;
+        }
+        ul { padding-right: 20px; }
+        button {
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            background: #22c55e;
+            color: #0f172a;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+        button:hover { background: #16a34a; }
+        .quiz-q { margin-bottom: 20px; padding: 12px; background: #1e293b; border-radius: 8px; }
+        .result-box {
+            margin-top: 20px;
+            padding: 16px;
+            border-radius: 8px;
+            background: #022c22;
+            border: 2px solid #22c55e;
+            display: none;
+        }
+        .command-title { border-bottom: 2px solid #38bdf8; padding-bottom: 8px; margin-bottom: 12px; }
+        .scenario { background: #1e1b4b; padding: 12px; border-radius: 6px; margin: 8px 0; }
+    </style>
+</head>
+<body>
+    <h1>🔴 Linux Day 3/210 | أسبوع 1/30</h1>
+    <h2>Permissions & chmod + File Operations</h2>
+
+    <div class="block">
+        <h3>🎯 Objectives</h3>
+        <ul>
+            <li>فهم <strong>Permissions</strong> في <code>ls -la</code> (rwx، owner/group/others) مع أمثلة أمنية</li>
+            <li>إتقان <code>chmod</code> لتغيير permissions (عددي 755/symbolic u+x)</li>
+            <li>عمليات الملفات: <code>touch</code>, <code>cp</code>, <code>mv</code>, <code>rm</code> مع خيارات آمنة</li>
+            <li>ربط permissions بـ <strong>Privilege Escalation</strong> و <strong>SUID exploits</strong></li>
+            <li>Mini-CTF: إنشاء exploit scenario بتعديل permissions</li>
+        </ul>
+    </div>
+
+    <div class="block">
+        <h3>📚 Theory</h3>
+        <p><strong>Permissions</strong> في Linux هي نظام <strong>Discretionary Access Control (DAC)</strong> يحدد <strong>r</strong> (read=4)، <strong>w</strong> (write=2)، <strong>x</strong> (execute=1) لكل من <strong>owner</strong>، <strong>group</strong>، <strong>others</strong>.</p>
+        <p>في <code>drwxr-xr-x</code>: <code>d</code>=directory، <code>rwx</code>=owner full control، <code>r-x</code>=group/others read+execute فقط. خلفياً: kernel يتحقق permissions عبر <strong>inode</strong> قبل syscall.</p>
+        <p>في السيبراني: إذا <code>/bin/ping</code> لديه <strong>SUID bit</strong> (<code>-rwsr-xr-x</code>) يعمل بصلاحيات root - <strong>exploits</strong> شهيرة مثل Dirty COW تستغل race conditions في permissions.</p>
+        <p><strong>chmod</strong> يغير permissions عبر <strong>chmod syscall</strong>. <strong>Numeric mode</strong> 755 = owner rwx(7), group/others rx(5). <strong>Symbolic</strong> <code>u+x</code> تضيف execute لـ owner.</p>
+        <p class="note">خطورة: <code>chmod 777 /etc/passwd</code> يسمح للمهاجم كتابة users جدد! <code>cp -p</code> يحافظ permissions/timestamps لـ evidence preservation.</p>
+    </div>
+
+    <div class="block">
+        <h3>💻 Practical Steps</h3>
+        <p><strong>Step 1: تحليل Permissions</strong></p>
+        <pre><code>ls -la /bin/ping           # -rwxr-xr-x 1 root root ... (normal)
+ls -la /usr/bin/passwd     # -rwsr-xr-x 1 root root ... (SUID bit s!)
+find /bin -perm -4000 2>/dev/null | head  # SUID binaries hunt</code></pre>
+        <p class="note"><code>s</code> في owner x = SUID. خطأ: <code>Permission denied</code> - حل: لا sudo لـ enumeration</p>
+
+        <p><strong>Step 2: chmod عملي</strong></p>
+        <pre><code>touch testfile
+ls -la testfile            # -rw-r--r-- 1 ali ali 0
+chmod 755 testfile         # owner rwx, group/others rx
+ls -la testfile            # -rwxr-xr-x
+chmod u-x testfile         # symbolic: remove execute من owner
+rm testfile</code></pre>
+
+        <p><strong>Step 3: File Operations</strong></p>
+        <pre><code>mkdir ~/day3 && cd ~/day3
+touch secret.txt flag.txt
+cp secret.txt backup.txt -p     # preserve permissions/timestamps
+mv flag.txt hidden_flag.txt
+rm backup.txt
+ls -la | grep flag</code></pre>
+    </div>
+
+    <div class="block">
+        <h3>🔬 Lab / Mini-CTF</h3>
+        <p><strong>تمرين 1 (بسيط):</strong> <code>touch ~/permtest && chmod 644 ~/permtest && ls -la ~/permtest</code>. شرح permissions الجديدة.</p>
+        
+        <p><strong>تمرين 2 (متوسط):</strong> <code>find /usr/bin -perm -4000 2>/dev/null | head -3</code>. ما وظيفة <code>find</code> هنا؟ (PenTest enumeration)</p>
+        
+        <p><strong>تمرين 3 (CTF-style): SUID Exploit Simulation</strong></p>
+        <pre><code>cd ~/day3
+echo '#!/bin/bash\necho "Exploited!" > /tmp/pwned\ncat /etc/passwd' > exploit.sh
+chmod 4755 exploit.sh           # SUID bit: 4xxx
+ls -la exploit.sh               # -rwsr-xr-x
+./exploit.sh                    # يعمل كـ root!
+FLAG: SUIDMastered</code></pre>
+        <p class="note">Mini-CTF: ما الـ permission الذي سمح التنفيذ كـ root؟ (<code>s</code> في owner x)</p>
+    </div>
+
+    <div class="block">
+        <h3>📸 Screenshot Instructions</h3>
+        <p><strong>أرسل:</strong></p>
+        <ul>
+            <li>Screenshot Terminal: <code>ls -la /bin/ping</code>, <code>find /bin -perm -4000 | head</code>, <code>chmod 755 testfile && ls -la</code>, Lab3 exploit</li>
+            <li>إجابات Quiz أدناه</li>
+            <li>جملة: "درس 3 مكتمل ✓ ساعات: 4"</li>
+        </ul>
+    </div>
+
+    <div class="block">
+        <h3>📖 Command Dictionary – قاموس أوامر هذا الدرس</h3>
+        
+        <div class="command-title">
+            <h4><code>ls -la</code></h4>
+        </div>
+        <p><strong>تعريف:</strong> Long listing مع hidden files. <strong>خلفياً:</strong> stat() syscall لـ metadata.</p>
+        <ul>
+            <li><code>-l</code>: permissions/size/owner</li>
+            <li><code>-a</code>: .files (dotfiles)</li>
+            <li><code>-h</code>: human sizes (K/M/G)</li>
+            <li><code>--color=auto</code>: colorize</li>
+            <li>أمني: يكشف <code>.ssh/authorized_keys</code> backdoors</li>
+        </ul>
+
+        <div class="command-title">
+            <h4><code>chmod</code></h4>
+        </div>
+        <p><strong>تعريف:</strong> Change file mode bits. <strong>خلفياً:</strong> يحدث inode permissions.</p>
+        <ul>
+            <li><code>755</code>: rwxr-xr-x standard</li>
+            <li><code>u+x</code>: user execute only</li>
+            <li><code>4755</code>: SUID + 755 (خطر!)</li>
+            <li><code>go-rwx</code>: remove all من group/others</li>
+            <li>أمني: <code>chmod 0000 /bin/su</code> لـ DoS</li>
+        </ul>
+
+        <div class="command-title">
+            <h4><code>find</code></h4>
+        </div>
+        <p><strong>تعريف:</strong> Filesystem search. <strong>خلفياً:</strong> recursive DFS.</p>
+        <ul>
+            <li><code>-perm -4000</code>: SUID files</li>
+            <li><code>2>/dev/null</code>: hide errors</li>
+            <li><code>-user root</code>: root-owned</li>
+            <li><code>-type f</code>: files only</li>
+            <li>أمني: SUID hunt في privilege escalation</li>
+        </ul>
+
+        <div class="command-title">
+            <h4><code>cp</code></h4>
+        </div>
+        <p><strong>تعريف:</strong> Copy files/directories. <strong>خلفياً:</strong> read/write loop.</p>
+        <ul>
+            <li><code>-p</code>: preserve mode/timestamps</li>
+            <li><code>-r</code>: recursive dirs</li>
+            <li><code>-u</code>: update only newer</li>
+            <li><code>-v</code>: verbose</li>
+        </ul>
+    </div>
+
+    <div class="block">
+        <h3>🌍 Real Scenarios – سيناريوهات واقعية</h3>
+        
+        <div class="scenario">
+            <h4><strong>PenTester Enumeration</strong></h4>
+            <pre><code>find / -perm -4000 2>/dev/null | grep -v /proc</code></pre>
+            <p><strong>شرح:</strong> <code>find</code> يبحث، <code>-perm -4000</code> أي SUID، <code>2>/dev/null</code> يخفي أخطاء permissions، <code>grep -v /proc</code> يستثني /proc noise. <strong>نتيجة:</strong> <code>/usr/bin/sudo</code> → pentester يختبر sudo misconfigs.</p>
+        </div>
+
+        <div class="scenario">
+            <h4><strong>SysAdmin Hardening</strong></h4>
+            <pre><code>chmod 755 /home/*/bin/* && find /home -perm -4000 -delete</code></pre>
+            <p><strong>شرح:</strong> <code>chmod 755</code> يضبط exec standard، <code>find -perm -4000</code> يحدد SUIDs، <code>-delete</code> يحذف. <strong>نتيجة:</strong> No user SUID → sysadmin يمنع LPE.</p>
+        </div>
+
+        <div class="scenario">
+            <h4><strong>Incident Response Cleanup</strong></h4>
+            <pre><code>cp -p /var/log/auth.log /tmp/ir_evidence && chmod 600 /tmp/ir_evidence</code></pre>
+            <p><strong>شرح:</strong> <code>cp -p</code> يحافظ evidence chain، <code>chmod 600</code> owner only access. <strong>نتيجة:</strong> Secure copy → IR يحافظ confidentiality.</p>
+        </div>
+    </div>
+
+    <div class="block">
+        <h3>🧠 Quiz احترافي</h3>
+        <div class="quiz-q">
+            <strong>1. ما معنى <code>drwxrwxrwt</code>؟</strong><br>
+            <label><input type="radio" name="q1" value="a"> d=dir, rwx all, t=sticky bit</label><br>
+            <label><input type="radio" name="q1" value="b"> SUID binary</label><br>
+            <label><input type="radio" name="q1" value="c"> root owned</label>
+        </div>
+
+        <div class="quiz-q">
+            <strong>2. أمر البحث SUID binaries؟</strong><br>
+            <label><input type="radio" name="q2" value="a"> find / -perm -4000</label><br>
+            <label><input type="radio" name="q2" value="b"> ls -la | grep root</label><br>
+            <label><input type="radio" name="q2" value="c"> chmod 4000</label>
+        </div>
+
+        <div class="quiz-q">
+            <strong>3. <code>cp -p</code> يحافظ على؟</strong><br>
+            <label><input type="radio" name="q3" value="a"> permissions/timestamps</label><br>
+            <label><input type="radio" name="q3" value="b"> file content only</label><br>
+            <label><input type="radio" name="q3" value="c"> owner only</label>
+        </div>
+
+        <div class="quiz-q">
+            <strong>4. <code>chmod 4755</code> يعني؟</strong><br>
+            <label><input type="radio" name="q4" value="a"> SUID + 755</label><br>
+            <label><input type="radio" name="q4" value="b"> owner rw only</label><br>
+            <label><input type="radio" name="q4" value="c"> group execute</label>
+        </div>
+
+        <div class="quiz-q">
+            <strong>5. لماذا <code>/tmp</code> permissions <code>1777</code>؟</strong><br>
+            <label><input type="radio" name="q5" value="a"> Sticky bit يمنع rm ملفات الآخرين</label><br>
+            <label><input type="radio" name="q5" value="b"> root only access</label><br>
+            <label><input type="radio" name="q5" value="c"> SUID directory</label>
+        </div>
+
+        <button onclick="gradeQuiz()">حساب النتيجة</button>
+        <div id="quizResult" class="result-box"></div>
+        <p class="note">📸 Screenshot هذا الصندوق + Terminal لإرساله لـ Perplexity ✓</p>
+    </div>
+
+    <script>
+        function gradeQuiz() {
+            let score = 0;
+            const total = 5;
+            
+            const q1 = document.querySelector('input[name="q1"]:checked');
+            const q2 = document.querySelector('input[name="q2"]:checked');
+            const q3 = document.querySelector('input[name="q3"]:checked');
+            const q4 = document.querySelector('input[name="q4"]:checked');
+            const q5 = document.querySelector('input[name="q5"]:checked');
+            
+            if (q1 && q1.value === 'a') score++;
+            if (q2 && q2.value === 'a') score++;
+            if (q3 && q3.value === 'a') score++;
+            if (q4 && q4.value === 'a') score++;
+            if (q5 && q5.value === 'a') score++;
+            
+            const percent = Math.round((score / total) * 100);
+            let grade = 'F';
+            if (percent >= 90) grade = 'A';
+            else if (percent >= 80) grade = 'B';
+            else if (percent >= 70) grade = 'C';
+            else if (percent >= 60) grade = 'D';
+            
+            const box = document.getElementById('quizResult');
+            box.style.display = 'block';
+            box.innerHTML = `
+                <strong>Quiz Day 3 - Permissions & chmod</strong><br>
+                ${score}/${total} صحيح<br>
+                ${percent}% - درجة: ${grade}<br><br>
+                📸 خذ Screenshot لهذا الصندوق + Terminal وأرسل لـ Perplexity
+            `;
+        }
+    </script>
+</body>
+</html>

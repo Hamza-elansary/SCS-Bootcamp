@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <title>Linux Day 5/210 - Logs, find & Advanced Pipes</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      direction: rtl;
+      background: #0f172a;
+      color: #e5e7eb;
+      margin: 0;
+      padding: 16px;
+      line-height: 1.6;
+    }
+    h1, h2 { color: #38bdf8; }
+    h3 { color: #60a5fa; }
+    .block {
+      border: 1px solid #334155;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 12px;
+      background: #020617;
+    }
+    code {
+      background: #111827;
+      padding: 4px 8px;
+      border-radius: 6px;
+      direction: ltr;
+      display: inline-block;
+      font-family: 'Courier New', monospace;
+    }
+    pre {
+      background: #111827;
+      padding: 16px;
+      border-radius: 8px;
+      overflow-x: auto;
+      direction: ltr;
+      border-left: 4px solid #38bdf8;
+      font-family: 'Courier New', monospace;
+    }
+    .note {
+      color: #a5b4fc;
+      font-size: 0.9rem;
+      font-style: italic;
+    }
+    ul { padding-right: 20px; }
+    button {
+      padding: 12px 24px;
+      border-radius: 8px;
+      border: none;
+      background: #22c55e;
+      color: #0f172a;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 1rem;
+    }
+    button:hover { background: #16a34a; }
+    .quiz-q {
+      margin-bottom: 20px;
+      padding: 12px;
+      background: #1e293b;
+      border-radius: 8px;
+    }
+    .result-box {
+      margin-top: 20px;
+      padding: 16px;
+      border-radius: 8px;
+      background: #022c22;
+      border: 2px solid #22c55e;
+      display: none;
+    }
+    .command-title {
+      border-bottom: 2px solid #38bdf8;
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+    }
+    .scenario {
+      background: #1e1b4b;
+      padding: 12px;
+      border-radius: 6px;
+      margin: 8px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔴 Linux Day 5/210 | أسبوع 1/30</h1>
+  <h2>Logs, <code>find</code> & Advanced Pipes (CTF‑style)</h2>
+
+  <div class="block">
+    <h3>🎯 Objectives</h3>
+    <ul>
+      <li>إتقان استخدام <code>find</code> للبحث عن ملفات حسب الاسم، الحجم، والصلاحيات.</li>
+      <li>دمج <code>find</code> مع <code>grep</code> و <code>xargs</code> للعثور على عدة <code>FLAG{}</code> داخل مشروع كامل.</li>
+      <li>تحليل ملف log لمعرفة IP الأكثر محاولة فاشلة واستخراج FLAG من بين السطور.</li>
+      <li>فهم دور الملفات ذات الصلاحيات الخطرة (world‑writable) في سيناريوهات الهجوم.</li>
+    </ul>
+  </div>
+
+  <div class="block">
+    <h3>📚 Theory</h3>
+    <p><strong>أمر find</strong> يسمح لك باستكشاف شجرة مجلدات كاملة وفق شروط دقيقة مثل نوع الكائن (ملف/مجلد)، الاسم، الحجم، المالك، والصلاحيات. الـ shell يمرر هذه الشروط لـ <code>find</code> الذي يزور كل مجلد فرعي ويطبق الفلترة محلياً، لذا فهو أقوى بكثير من <code>ls</code> مع globbing عادي عندما تكبر الشجرة أو تحتاج شروطاً مركّبة.</p>
+    <p>عندما تربط <code>find</code> مع <code>xargs</code> و <code>grep</code> عبر pipes، تحصل على "رادار" قوي للبحث عن أسرار أو أنماط داخل مئات الملفات. هذا النمط يُستخدم في CTF للبحث عن <code>FLAG{}</code>، ويُستخدم في الحوادث الحقيقية للبحث عن مفاتيح خاصة أو كلمات سر مسرّبة داخل مستودعات الكود أو مسارات مثل <code>/var/www</code>.</p>
+    <p>ملفات الـ <strong>log</strong> مثل <code>auth.log</code> تسجل محاولات الدخول الناجحة والفاشلة. باستخدام <code>grep</code> و <code>wc -l</code> و <code>awk</code> يمكنك تحديد IP الأكثر عدوانية، وعدّ عدد محاولات root فقط، وربط ذلك مع تحذيرات أو flags مخفية في السجل نفسه كما في تحديات CTF.</p>
+    <p class="note">سؤال تفكير: لماذا يُعتبر وجود ملف world‑writable في مسار حساس مثل <code>/usr/local/bin</code> ثغرة خطيرة حتى لو لم يكن فيه أي كود خبيث حالياً؟ تخيّل ما الذي يمكن لمهاجم فعله إذا تمكن من تعديل هذا الملف.</p>
+  </div>
+
+  <div class="block">
+    <h3>💻 Practical Steps – Lab Setup</h3>
+
+    <p><strong>1) إنشاء مشروع اليوم</strong></p>
+    <pre><code>mkdir -p ~/day5_ctf_advanced &amp;&amp; cd ~/day5_ctf_advanced
+
+mkdir logs secrets public tmp
+
+# fake logs
+cat &gt; logs/app.log &lt;&lt; 'EOF'
+INFO startup ok
+WARN something odd
+ERROR user failed login from 10.0.0.5
+ERROR user failed login from 10.0.0.5
+ERROR user failed login from 10.0.0.7
+NOTE  attacker 10.0.0.5 triggered FLAG{day5_log_hunter}
+EOF
+
+# multiple flags in different places
+echo "NOT_FLAG{ignore_me}" &gt; public/readme.txt
+echo "random text FLAG{day5_first_flag}" &gt;&gt; public/readme.txt
+
+echo "FLAG{day5_secret_admin}" &gt; secrets/admin_note.txt
+echo "some noise" &gt; tmp/a.txt
+echo "FLAG{day5_tmp_hidden}" &gt; tmp/.tmp_flag.txt
+
+chmod 644 public/readme.txt
+chmod 600 secrets/admin_note.txt
+chmod 777 tmp/a.txt
+chmod 600 tmp/.tmp_flag.txt</code></pre>
+
+    <p class="note">بهذا أصبح لدينا عدة FLAGS موزعة على ملفات مختلفة + log يمكن تحليله لاكتشاف IP المهاجم والـ FLAG المرتبط به.</p>
+
+    <p><strong>2) استكشاف باستخدام find</strong></p>
+    <pre><code>cd ~/day5_ctf_advanced
+
+# كل الملفات
+find .
+
+# ملفات فقط
+find . -type f
+
+# ملفات أسماؤها تحتوي كلمة flag
+find . -type f -name "*flag*"
+
+# ملفات world-writable (perm 777)
+find . -type f -perm -0002 -print</code></pre>
+
+    <p><strong>3) صيد كل الـ FLAG{}</strong></p>
+    <pre><code># قراءة جميع الملفات والبحث عن صيغ FLAG{...}
+find . -type f -print | xargs cat 2&gt;/dev/null | grep -E "FLAG\{.*\}"</code></pre>
+    <p class="note">هذا نفس نمط day4 لكن على مشروع أكبر؛ لا تعتمد على معرفة أسماء الملفات بل على شكل الـ FLAG نفسه.</p>
+
+    <p><strong>4) تحليل ملف log لاكتشاف IP المهاجم</strong></p>
+    <pre><code>cd ~/day5_ctf_advanced
+
+# عرض سريع لأعلى وأدنى الملف
+head logs/app.log
+tail logs/app.log
+
+# محاولات login الفاشلة
+grep -i "failed login" logs/app.log
+
+# عدّ عددها
+grep -i "failed login" logs/app.log | wc -l
+
+# استخراج IPs من الأسطر الفاشلة ومعرفة الأكثر تكراراً
+grep -i "failed login" logs/app.log | awk '{print $NF}' | sort | uniq -c | sort -nr</code></pre>
+
+    <p class="note">سترى أن عنوان IP <code>10.0.0.5</code> هو الأكثر محاولة فاشلة، وهو نفس العنوان الذي يظهر في سطر الـ FLAG في نهاية <code>app.log</code>.</p>
+  </div>
+
+  <div class="block">
+    <h3>🔬 Lab / Mini‑CTF – Day 5</h3>
+
+    <p><strong>تمرين 1 – حصد جميع الـ FLAGS في ملف واحد</strong></p>
+    <pre><code>cd ~/day5_ctf_advanced
+
+find . -type f -print | xargs cat 2&gt;/dev/null | grep -E "FLAG\{.*\}" &gt; all_flags.txt
+cat all_flags.txt</code></pre>
+    <p class="note">هذا الملف يمثل "تقرير استخباراتي" بكل الـ flags التي وجدتها في النظام.</p>
+
+    <p><strong>تمرين 2 – تقرير عن الـ IP المهاجم</strong></p>
+    <pre><code>grep -i "failed login" logs/app.log | awk '{print $NF}' | sort | uniq -c | sort -nr &gt; ip_stats.txt
+cat ip_stats.txt</code></pre>
+
+    <p><strong>تمرين 3 – Mini‑CTF: إعداد تقرير كامل</strong></p>
+    <pre><code>cat &lt;&lt;EOF &gt; incident_report_day5.txt
+Most aggressive IP: 10.0.0.5
+Total failed logins: $(grep -i "failed login" logs/app.log | wc -l)
+Root cause: repeated brute-force attempts from 10.0.0.5
+Flags discovered:
+$(cat all_flags.txt)
+EOF
+
+cat incident_report_day5.txt</code></pre>
+
+    <p><strong>تمرين 4 – تحليل ملف world-writable</strong></p>
+    <pre><code>find . -type f -perm -0002 -print &gt; dangerous_files.txt
+cat dangerous_files.txt</code></pre>
+    <p class="note">فكّر: ماذا لو كان أي ملف في <code>dangerous_files.txt</code> عبارة عن script يعمل آلياً (cron)؟ كيف يمكن استغلاله لرفع الصلاحيات؟</p>
+  </div>
+
+  <div class="block">
+    <h3>📸 Screenshot Instructions</h3>
+    <ul>
+      <li>Screenshot للـ Terminal يوضح:
+        <ul>
+          <li>أوامر <code>find . -type f -print | xargs cat | grep -E "FLAG\{.*\}"</code> مع ظهور كل الـ flags.</li>
+          <li>أمر تحليل الـ IPs في <code>logs/app.log</code> وملف <code>ip_stats.txt</code>.</li>
+          <li>محتوى <code>incident_report_day5.txt</code>.</li>
+        </ul>
+      </li>
+      <li>بعد الانتهاء، اكتب: <strong>"درس Day 5 مكتمل ✓ ساعات: 4"</strong>.</li>
+    </ul>
+  </div>
+
+  <div class="block">
+    <h3>📖 قاموس أوامر Day 5</h3>
+
+    <div class="command-title">
+      <h4><code>find</code></h4>
+    </div>
+    <p><strong>وصف:</strong> البحث في شجرة المجلدات عن ملفات/مجلدات بشروط معينة بدون الحاجة لفتح كل مجلد يدويًا.</p>
+    <ul>
+      <li><code>-type f</code>: ملفات فقط، و<code>-type d</code> للمجلدات.</li>
+      <li><code>-name "*pattern*"</code>: مطابقة الاسم مع pattern.</li>
+      <li><code>-perm -0002</code>: ملفات يمكن للـ others الكتابة عليها (world‑writable).</li>
+      <li><code>-size +1M</code>: ملفات أكبر من 1MB (قد تكون dumps أو logs ضخمة).</li>
+      <li><code>-print</code>: طباعة المسارات (يُستخدم غالبًا مع pipes أو <code>-exec</code>).</li>
+    </ul>
+
+    <div class="command-title">
+      <h4><code>grep</code></h4>
+    </div>
+    <p><strong>وصف:</strong> البحث عن أسطر تحتوي نصًا أو regex داخل ملفات أو مخرجات أوامر.</p>
+    <ul>
+      <li><code>-i</code>: تجاهل حالة الأحرف (Case-insensitive).</li>
+      <li><code>-E</code>: تفعيل extended regex مثل <code>"FLAG\{.*\}"</code>.</li>
+      <li><code>-n</code>: عرض رقم السطر.</li>
+      <li><code>-r</code>: بحث recursive في المجلدات.</li>
+      <li>مع pipes: <code>command | grep pattern</code> لتصفية المخرجات.</li>
+    </ul>
+
+    <div class="command-title">
+      <h4><code>xargs</code></h4>
+    </div>
+    <p><strong>وصف:</strong> يأخذ قائمة من stdin (مثل ناتج <code>find</code>) ويحوّلها إلى arguments لأمر آخر.</p>
+    <ul>
+      <li>الاستخدام الشائع: <code>find . -type f -print | xargs cat</code>.</li>
+      <li><code>-0</code> مع <code>find ... -print0</code> للتعامل مع أسماء تحتوي مسافات.</li>
+      <li>مفيد عند التعامل مع آلاف الملفات بدون كتابة سكربت معقّد.</li>
+    </ul>
+
+    <div class="command-title">
+      <h4><code>wc -l</code></h4>
+    </div>
+    <p><strong>وصف:</strong> عدّ الأسطر في مدخل ما؛ يستخدم في حساب عدد الأحداث في logs أو عدد النتائج من grep.</p>
+    <ul>
+      <li><code>wc -l file</code>: عدد أسطر ملف.</li>
+      <li><code>command | wc -l</code>: عدد الأسطر التي أخرجها الأمر.</li>
+    </ul>
+
+    <div class="command-title">
+      <h4><code>awk</code></h4>
+    </div>
+    <p><strong>وصف:</strong> أداة قوية لمعالجة النصوص مبنية على الحقول؛ ممتازة لالتقاط الأعمدة مثل عناوين IP.</p>
+    <ul>
+      <li><code>awk '{print $NF}'</code>: طباعة الحقل الأخير من كل سطر.</li>
+      <li><code>awk '{print $(NF-1)}'</code>: الحقل قبل الأخير وهكذا.</li>
+      <li>يُستخدم مع <code>sort</code> و <code>uniq -c</code> للحصول على إحصائيات.</li>
+    </ul>
+  </div>
+
+  <div class="block">
+    <h3>🌍 سيناريوهات واقعية لأوامر Day 5</h3>
+
+    <div class="scenario">
+      <h4><strong>1) البحث عن أسرار داخل كود تطبيق ويب</strong></h4>
+      <pre><code>find /var/www -type f -print | xargs grep -E "password|SECRET_KEY" 2&gt;/dev/null</code></pre>
+      <p><strong>السيناريو:</strong> فريق الأمن يفحص مشروع ويب بعد حادثة تسريب للتحقق من عدم وجود كلمات سر صريحة في الكود.</p>
+      <p><strong>الشرح:</strong> <code>find /var/www -type f -print</code> يمر على كل الملفات في الكود، ثم <code>xargs grep -E</code> يبحث عن الكلمات الحساسة. <code>2&gt;/dev/null</code> يخفي أخطاء الصلاحيات أو الملفات الثنائية. النتيجة تساعد في إصلاح الممارسات السيئة في التخزين الصريح للأسرار.</p>
+    </div>
+
+    <div class="scenario">
+      <h4><strong>2) اكتشاف ملفات world‑writable قبل استغلالها</strong></h4>
+      <pre><code>find / -type f -perm -0002 -print 2&gt;/dev/null | tee world_writable_files.txt</code></pre>
+      <p><strong>السيناريو:</strong> مسؤول نظام يجري تدقيقًا أمنيًا على سيرفر إنتاج يبحث فيه عن ملفات يمكن لأي مستخدم تعديلها.</p>
+      <p><strong>الشرح:</strong> الخيار <code>-perm -0002</code> يطابق أي ملف له permission كتابة للـ others. يتم حفظ النتائج في ملف عبر <code>tee</code> لاستخدامها لاحقًا في إصلاح الصلاحيات أو مراجعة الفرق المالكة لهذه الملفات.</p>
+    </div>
+
+    <div class="scenario">
+      <h4><strong>3) قياس شدّة هجوم brute force على SSH</strong></h4>
+      <pre><code>grep -i "failed password" /var/log/auth.log | awk '{print $(NF-3)}' | sort | uniq -c | sort -nr | head</code></pre>
+      <p><strong>السيناريو:</strong> محلل Incident Response يريد معرفة أي IPs تحاول كسر كلمات سر SSH وبأي شدّة.</p>
+      <p><strong>الشرح:</strong> <code>grep</code> يلتقط محاولات الفشل، <code>awk</code> يستخرج عمود الـ IP (يختلف حسب شكل الـ log)، ثم <code>sort</code> و <code>uniq -c</code> يعطيان عدد المحاولات لكل IP، وأخيراً <code>head</code> لعرض الأكثر عدوانية. هذا يقود لقرارات مثل حجب IP أو تفعيل 2FA.</p>
+    </div>
+  </div>
+
+  <div class="block">
+    <h3>🧠 Quiz – Day 5 Logs &amp; find</h3>
+
+    <div class="quiz-q">
+      <strong>1. أي أمر يعرض جميع الأسطر التي تحتوي <code>FLAG{</code> في كل ملفات المجلد الحالي والمجلدات الفرعية؟</strong><br>
+      <label><input type="radio" name="q1" value="a"> <code>find . -type f -print | xargs cat 2&gt;/dev/null | grep "FLAG{"</code></label><br>
+      <label><input type="radio" name="q1" value="b"> <code>grep "FLAG{" * </code></label><br>
+      <label><input type="radio" name="q1" value="c"> <code>ls | grep FLAG</code></label>
+    </div>
+
+    <div class="quiz-q">
+      <strong>2. ماذا يفعل الخيار <code>-perm -0002</code> في find؟</strong><br>
+      <label><input type="radio" name="q2" value="a"> يبحث عن ملفات يمكن للـ others الكتابة عليها</label><br>
+      <label><input type="radio" name="q2" value="b"> يبحث عن ملفات executable فقط</label><br>
+      <label><input type="radio" name="q2" value="c"> يبحث عن ملفات بحجم أكبر من 2MB</label>
+    </div>
+
+    <div class="quiz-q">
+      <strong>3. أي pipeline يعطيك أكثر IP كرّر محاولات فشل في ملف log؟</strong><br>
+      <label><input type="radio" name="q3" value="a"> <code>grep -i "failed login" logs/app.log | awk '{print $NF}' | sort | uniq -c | sort -nr</code></label><br>
+      <label><input type="radio" name="q3" value="b"> <code>cat logs/app.log | wc -l</code></label><br>
+      <label><input type="radio" name="q3" value="c"> <code>ls logs | grep failed</code></label>
+    </div>
+
+    <div class="quiz-q">
+      <strong>4. ما الفائدة من إضافة <code>2&gt;/dev/null</code> في أوامر تستخدم find + xargs + grep؟</strong><br>
+      <label><input type="radio" name="q4" value="a"> إخفاء رسائل الخطأ الناتجة عن ملفات لا يمكن قراءتها</label><br>
+      <label><input type="radio" name="q4" value="b"> حذف الملفات التي لا يمكن قراءتها</label><br>
+      <label><input type="radio" name="q4" value="c"> إعادة تشغيل الأمر تلقائيًا عند حدوث خطأ</label>
+    </div>
+
+    <div class="quiz-q">
+      <strong>5. أي أمر يستخدم الحجم لاكتشاف الملفات الكبيرة (أكبر من 1MB) في مشروع CTF؟</strong><br>
+      <label><input type="radio" name="q5" value="a"> <code>find . -type f -size +1M -print</code></label><br>
+      <label><input type="radio" name="q5" value="b"> <code>ls -lh</code></label><br>
+      <label><input type="radio" name="q5" value="c"> <code>grep "+1M" *</code></label>
+    </div>
+
+    <button onclick="gradeQuiz()">حساب النتيجة</button>
+    <div id="quizResult" class="result-box"></div>
+    <p class="note">📸 بعد حساب النتيجة خذ Screenshot لهذا الصندوق + Screenshot للـ Terminal أثناء تنفيذ تمارين اليوم، ثم أرسلهم مع الجملة: <strong>"درس Day 5 مكتمل ✓ ساعات: 4"</strong>.</p>
+  </div>
+
+  <script>
+    function gradeQuiz() {
+      let score = 0;
+      const total = 5;
+
+      const q1 = document.querySelector('input[name="q1"]:checked');
+      const q2 = document.querySelector('input[name="q2"]:checked');
+      const q3 = document.querySelector('input[name="q3"]:checked');
+      const q4 = document.querySelector('input[name="q4"]:checked');
+      const q5 = document.querySelector('input[name="q5"]:checked');
+
+      if (q1 && q1.value === 'a') score++;
+      if (q2 && q2.value === 'a') score++;
+      if (q3 && q3.value === 'a') score++;
+      if (q4 && q4.value === 'a') score++;
+      if (q5 && q5.value === 'a') score++;
+
+      const percent = Math.round((score / total) * 100);
+      let grade = 'F';
+      if (percent >= 90) grade = 'A';
+      else if (percent >= 80) grade = 'B';
+      else if (percent >= 70) grade = 'C';
+      else if (percent >= 60) grade = 'D';
+
+      const box = document.getElementById('quizResult');
+      box.style.display = 'block';
+      box.innerHTML = `
+        <strong>Quiz Day 5 - Logs, find &amp; CTF</strong><br>
+        ${score}/${total} إجابات صحيحة<br>
+        النسبة: ${percent}%<br>
+        التقدير: ${grade}<br><br>
+        📸 خذ Screenshot لهذا الصندوق + Screenshot للـ Terminal وأرسلهما إلى Perplexity لتوثيق إنجاز درس اليوم.
+      `;
+    }
+  </script>
+</body>
+</html>
