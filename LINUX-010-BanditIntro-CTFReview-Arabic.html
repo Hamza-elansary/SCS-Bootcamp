@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>Linux Day 10/210 - Bandit &amp; CTF Practice</title>
+    <style>
+        body {
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            direction: rtl;
+            background: #020617;
+            color: #e5e7eb;
+            margin: 0;
+            padding: 16px;
+            line-height: 1.7;
+        }
+        h1, h2 { color: #38bdf8; }
+        h3 { color: #60a5fa; }
+        h4 { color: #a5b4fc; }
+        .block {
+            border: 1px solid #1f2937;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 12px;
+            background: #020617;
+            box-shadow: 0 0 0 1px #0f172a;
+        }
+        code {
+            background: #0b1120;
+            padding: 2px 6px;
+            border-radius: 4px;
+            direction: ltr;
+            display: inline-block;
+            font-family: "Courier New", monospace;
+            font-size: 0.9rem;
+        }
+        pre {
+            background: #020617;
+            padding: 14px;
+            border-radius: 8px;
+            overflow-x: auto;
+            direction: ltr;
+            font-family: "Courier New", monospace;
+            font-size: 0.9rem;
+            border-left: 4px solid #38bdf8;
+        }
+        .note {
+            color: #a5b4fc;
+            font-size: 0.9rem;
+            font-style: italic;
+        }
+        ul { padding-right: 20px; }
+        button {
+            padding: 10px 22px;
+            border-radius: 8px;
+            border: none;
+            background: #22c55e;
+            color: #022c22;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+        button:hover { background: #16a34a; }
+        .quiz-q {
+            margin-bottom: 18px;
+            padding: 12px;
+            background: #020617;
+            border-radius: 10px;
+            border: 1px solid #1e293b;
+        }
+        .result-box {
+            margin-top: 20px;
+            padding: 16px;
+            border-radius: 8px;
+            background: #022c22;
+            border: 2px solid #22c55e;
+            display: none;
+        }
+        .command-title {
+            border-bottom: 2px solid #38bdf8;
+            padding-bottom: 4px;
+            margin-bottom: 10px;
+        }
+        .scenario {
+            background: #111827;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 10px 0;
+            border: 1px solid #1f2937;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🔴 Linux Day 10/210 | أسبوع 2/30</h1>
+    <h2>Bandit Intro &amp; Multi‑CTF Review (Filesystem, Permissions, Shell)</h2>
+
+    <div class="block">
+        <h3>🎯 Objectives</h3>
+        <ul>
+            <li>مراجعة شاملة لأوامر الأيام السابقة: filesystem, permissions, shell, processes.</li>
+            <li>فهم بنية لعبة <strong>Bandit</strong> في OverTheWire وكيفية الاتصال بسيرفر عن بعد باستخدام <code>ssh</code>.</li>
+            <li>حل سلسلة Mini‑CTF محلية تحاكي مستويات Bandit 0→3 (ملفات مخفية، أسماء غريبة، صلاحيات، مسارات).</li>
+            <li>تعلّم أسلوب توثيق الحلول في ملف <code>history_day10.log</code> لتعويد نفسك على كتابة تقارير لاحقًا.</li>
+        </ul>
+    </div>
+
+    <div class="block">
+        <h3>📚 Theory – Bandit كمدرسة CTF دائمة</h3>
+        <p>لعبة <strong>Bandit</strong> من موقع OverTheWire هي سلسلة مستويات CTF متدرجة تركّز على أساسيات لينكس وسطر الأوامر. كل مستوى يوفّر لك مستخدمًا (مثل <code>bandit0</code>) على سيرفر بعيد، وهدفك أن تجد كلمة السر في النظام باستخدام الأوامر المناسبة، ثم تستعمل هذه الكلمة للانتقال إلى المستوى التالي (<code>bandit1</code> وهكذا). هذا يعلّمك التفكير كـ attacker: أين يمكن أن تُخفى الأسرار؟ كيف أتعامل مع أسماء الملفات الغريبة؟ كيف أستخدم <code>find</code> و<code>grep</code> و<code>cat</code> بشكل ذكي؟</p>
+        <p>الاتصال يكون عبر بروتوكول <strong>SSH</strong> الذي ينشئ قناة مشفرة بين جهازك والسيرفر البعيد. الأداة <code>ssh</code> على لينكس تستخدم مفاهيم مثل: اسم المستخدم، اسم السيرفر أو الـ IP، ورقم المنفذ (port). في Bandit، الاتصال الأول غالبًا يكون بهذا الشكل: <code>ssh bandit0@bandit.labs.overthewire.org -p 2220</code>. بعد تسجيل الدخول، تصبح كل المهارات التي تعلمتها في الأيام 1–9 (ملفات النظام، الصلاحيات، redirection، pipes) هي أسلحتك الأساسية لحل كل مستوى.</p>
+        <p>في هذا الدرس لن ندخل Bandit الحقيقي بعد، لكن سنبني <strong>مختبر محلي</strong> يشبه أول المستويات: مجلد يحتوي على ملفات مخفية، مسارات عميقة، وصلاحيات مختلفة، مع <code>FLAGS</code> تمثّل كلمات سر Bandit. الهدف هو مراجعة كل ما سبق بطريقة CTF، حتى يصبح الانتقال لسيرفر Bandit لاحقًا خطوة طبيعية وليست مخيفة.</p>
+        <p class="note">سؤال تفكير: عندما تحل مستوى في Bandit، ما الفرق بين أن تحفظ الأمر فقط وبين أن تكتب ملاحظة قصيرة عن فكرة الحل؟ أيهما يساعدك أكثر عندما تعود لمراجعة المستويات بعد شهر؟</p>
+    </div>
+
+    <div class="block">
+        <h3>💻 Practical Steps – Bandit‑Style Local Lab</h3>
+
+        <p><strong>1) إعداد مختبر اليوم</strong></p>
+        <pre><code>mkdir -p ~/day10_bandit_lab &amp;&amp; cd ~/day10_bandit_lab
+
+# level0: ملف واضح
+echo "FLAG{day10_level0_simple}" &gt; password0.txt
+
+# level1: ملف مخفي
+mkdir level1
+echo "FLAG{day10_level1_hidden}" &gt; level1/.secret_pass
+
+# level2: مسار عميق
+mkdir -p level2/a/b/c
+echo "FLAG{day10_level2_paths}" &gt; level2/a/b/c/flag.txt
+
+# level3: اسم ملف غريب مع مسافات وعلامات
+mkdir level3
+echo "FLAG{day10_level3_weird_name}" &gt; "level3/- -password file (final).txt"
+
+# level4: صلاحيات غريبة (غير قابلة للقراءة إلا من root نظريًا)
+mkdir level4
+echo "FLAG{day10_level4_perms}" &gt; level4/protected.txt
+chmod 000 level4/protected.txt   # قد تحتاج sudo للعودة للصلاحيات لاحقًا، سنعالجها في CTF</code></pre>
+        <p class="note">الهدف هنا ليس استخدام sudo فعليًا، بل التفكير: لو كان الملف غير قابل للقراءة، ماذا يمكن أن أفعل كمستخدم عادي؟ في Bandit غالبًا يكون هناك طريقة بديلة (ملف آخر، أو استغلال صلاحيات برنامج).</p>
+
+        <p><strong>2) إنشاء ملف history لتوثيق أوامرك</strong></p>
+        <pre><code># من داخل ~/day10_bandit_lab
+script -q history_day10.log</code></pre>
+        <p class="note">أمر <code>script</code> يبدأ تسجيل كل ما تكتبه وكل ما تراه داخل الـ shell إلى ملف. عندما تنتهي، اكتب <code>exit</code> للعودة، وسيتم حفظ الجلسة بالكامل. هذا يشبه "Black Box" لتمارينك.</p>
+    </div>
+
+    <div class="block">
+        <h3>🔬 Lab / Mini‑CTF – مستويات محليّة تشبه Bandit 0→3</h3>
+
+        <p><strong>Level 0 – Find the simple password</strong></p>
+        <pre><code>cd ~/day10_bandit_lab
+
+ls
+cat password0.txt</code></pre>
+        <p class="note">سؤال: في Bandit الحقيقي، غالبًا يخبرك الوصف أن كلمة السر موجودة في ملف في home. هنا الفكرة نفسها لكن محليًا.</p>
+
+        <p><strong>Level 1 – Hidden file</strong></p>
+        <pre><code># ما الذي تراه أولًا؟
+ls
+cd level1
+ls
+ls -a
+cat .secret_pass</code></pre>
+        <p class="note">لاحظ أن <code>ls</code> وحده لا يظهر الملف، بينما <code>ls -a</code> يكشف الملفات التي تبدأ بنقطة. هذا نمط متكرر جدًا في CTFs.</p>
+
+        <p><strong>Level 2 – Deep paths</strong></p>
+        <pre><code>cd ~/day10_bandit_lab
+
+find level2 -type f -name "flag.txt"
+cat level2/a/b/c/flag.txt</code></pre>
+        <p class="note">يمكنك الوصول للمسار إما باستخدام <code>cd</code> خطوة بخطوة أو استعمال <code>find</code> كما فعلت في دروس سابقة.</p>
+
+        <p><strong>Level 3 – Weird file names</strong></p>
+        <pre><code>cd ~/day10_bandit_lab/level3
+
+ls
+ls -l
+
+# طريقتان آمنتان لعرض محتوى الملف:
+cat *password*
+cat "./- -password file (final).txt"</code></pre>
+        <p class="note">في Bandit ستجد ملفات بأسماء تبدأ بـ <code>-</code> أو تحتوي مسافات. استخدام الاقتباسات أو الـ globbing مثل <code>*password*</code> يمنع الـ shell من تفسير الاسم كـ option.</p>
+
+        <p><strong>Level 4 – Permissions puzzle (تفكير فقط)</strong></p>
+        <pre><code>cd ~/day10_bandit_lab/level4
+ls -l
+cat protected.txt   # جرّب وشاهد رسالة الخطأ</code></pre>
+        <p class="note">سترى على الأرجح رسالة "Permission denied". في Bandit، مثل هذا الملف قد يكون مخصّصًا root فقط، لكن سيعطيك المستوى تلميحًا لملف آخر أو binary يمكنه قراءة المحتوى نيابة عنك. هنا يكفي أن تفهم الفكرة. يمكنك مؤقتًا إعادة الصلاحيات بـ <code>chmod 644 protected.txt</code> لترى الـ FLAG، لكن تخيّل أنك لا تملك هذا الخيار في سيرفر حقيقي.</p>
+
+        <p><strong>إنهاء تسجيل history</strong></p>
+        <pre><code># إذا كنت ما زلت داخل جلسة script
+exit</code></pre>
+        <p class="note">بعد <code>exit</code> تأكد من وجود <code>history_day10.log</code> في مجلد <code>day10_bandit_lab</code>؛ هذا ملف مهم لمراجعة نفسك لاحقًا.</p>
+    </div>
+
+    <div class="block">
+        <h3>📸 Screenshot Instructions</h3>
+        <ul>
+            <li>Screenshot من Terminal يوضح:
+                <ul>
+                    <li>استخراج كل FLAG للمستويات 0–3 (أوامر <code>cat</code> والنتائج).</li>
+                    <li>مخرجات <code>ls -la</code> في <code>level1</code> مع ظهور الملف المخفي <code>.secret_pass</code>.</li>
+                    <li>مخرجات <code>ls -l</code> في <code>level4</code> التي تبين صلاحيات <code>protected.txt</code> ورسالة <code>Permission denied</code>.</li>
+                </ul>
+            </li>
+            <li>Screenshot لمحتوى بداية ملف <code>history_day10.log</code> باستخدام:
+                <pre><code>cd ~/day10_bandit_lab
+head -40 history_day10.log</code></pre>
+            </li>
+            <li>أرسل الـ Screenshots مع الجملة: <strong>"درس Day 10 Bandit‑Style مكتمل ✓ ساعات: 4"</strong>.</li>
+        </ul>
+        <p class="note">تدرب على كتابة FLAGs في مكان منفصل (مثل ملف نصي أو Notion) تمامًا كما ستفعل عند حل مستويات Bandit الحقيقية.</p>
+    </div>
+
+    <div class="block">
+        <h3>📖 قاموس أوامر هذا الدرس (Command Dictionary)</h3>
+
+        <div class="command-title">
+            <h4><code>ssh</code></h4>
+        </div>
+        <p><strong>وصف:</strong> أداة الاتصال الآمن بسيرفرات بعيدة عبر بروتوكول SSH. تنشئ قناة مشفرة وتسمح بتنفيذ الأوامر على الجهاز البعيد كأنك تجلس أمامه.</p>
+        <ul>
+            <li><code>ssh user@host</code>: اتصال افتراضي على المنفذ 22.</li>
+            <li><code>ssh -p 2220 user@host</code>: استخدام منفذ مختلف (كما في Bandit).</li>
+            <li><code>ssh -i key.pem user@host</code>: استخدام مفتاح خاص بدلاً من كلمة مرور.</li>
+            <li><code>ssh -v user@host</code>: وضع verbose لعرض تفاصيل التفاوض (مفيد في الـ debugging).</li>
+        </ul>
+
+        <div class="command-title">
+            <h4><code>find</code></h4>
+        </div>
+        <p><strong>وصف:</strong> البحث في شجرة مجلدات عن ملفات أو مجلدات بناءً على شروط (الاسم، النوع، الحجم، الصلاحيات). في الخلفية يمر على كل مجلد فرعي ويطبّق الفلاتر محليًا.</p>
+        <ul>
+            <li><code>find level2 -type f</code>: عرض كل الملفات تحت <code>level2</code>.</li>
+            <li><code>find . -type f -name "flag.txt"</code>: البحث عن ملف اسمه <code>flag.txt</code>.</li>
+            <li><code>find . -type f -perm -0002</code>: ملفات world‑writable (مفيد أمنيًا).</li>
+            <li><code>find . -type f -print | xargs cat</code>: قراءة كل الملفات (كما في CTFs السابقة).</li>
+        </ul>
+
+        <div class="command-title">
+            <h4><code>ls</code></h4>
+        </div>
+        <p><strong>وصف:</strong> عرض محتويات المجلد. يستدعي الـ kernel لقراءة entries ثم ينسقها حسب الخيارات.</p>
+        <ul>
+            <li><code>ls</code>: عرض الأسماء فقط.</li>
+            <li><code>ls -a</code>: إظهار الملفات المخفية (تبدأ بـ <code>.</code>).</li>
+            <li><code>ls -l</code>: عرض تفصيلي يتضمن الصلاحيات والمالك.</li>
+            <li><code>ls -la</code>: دمج التفصيلي مع إظهار الملفات المخفية.</li>
+        </ul>
+
+        <div class="command-title">
+            <h4><code>cat</code></h4>
+        </div>
+        <p><strong>وصف:</strong> طباعة محتوى الملفات إلى <code>stdout</code> أو دمج عدة ملفات. في الخلفية يقرأ من الملف ويكتب إلى الـ terminal أو إلى أمر آخر في pipeline.</p>
+        <ul>
+            <li><code>cat file.txt</code>: عرض محتوى ملف عادي.</li>
+            <li><code>cat "weird file name.txt"</code>: التعامل مع أسماء تحتوي مسافات عبر الاقتباس.</li>
+            <li><code>cat &gt; file.txt</code>: إدخال يدوي حتى ضغط <code>Ctrl+D</code> (هنا‑document بسيط).</li>
+        </ul>
+
+        <div class="command-title">
+            <h4><code>script</code></h4>
+        </div>
+        <p><strong>وصف:</strong> يسجل جلسة الـ shell (الأوامر + المخرجات) في ملف. مفيد لتوثيق حلول CTF أو حفظ إجراءات Incident Response خطوة بخطوة.</p>
+        <ul>
+            <li><code>script history.log</code>: يبدأ التسجيل في الملف <code>history.log</code>.</li>
+            <li><code>script -q history.log</code>: نفس الشيء بدون رسالة البداية.</li>
+            <li><code>exit</code>: إنهاء الجلسة وإغلاق ملف التسجيل.</li>
+        </ul>
+    </div>
+
+    <div class="block">
+        <h3>🌍 سيناريوهات واقعية لأوامر هذا الدرس</h3>
+
+        <div class="scenario">
+            <h4><strong>1) الاتصال بأول مستوى في Bandit</strong></h4>
+            <pre><code>ssh bandit0@bandit.labs.overthewire.org -p 2220</code></pre>
+            <p><strong>السيناريو:</strong> طالب Cyber يبدأ رحلته في Bandit. يحصل على كلمة المرور الأولية من موقع اللعبة، ثم يستخدم هذا الأمر للدخول إلى السيرفر البعيد.</p>
+            <p><strong>الشرح:</strong> <code>ssh</code> هو البرنامج، <code>bandit0</code> اسم المستخدم في السيرفر البعيد، <code>@bandit.labs.overthewire.org</code> هو اسم الـ host الذي سيترجم إلى IP عبر DNS، و<code>-p 2220</code> يحدد منفذًا مختلفًا عن 22 لتفادي تضارب مع إعدادات افتراضية. بعد نجاح الاتصال، يطبّق الطالب بالضبط نفس أوامر <code>ls</code>, <code>cat</code>, <code>find</code> التي تدرب عليها محليًا.</p>
+        </div>
+
+        <div class="scenario">
+            <h4><strong>2) صيد FLAG في مشروع CTF كبير</strong></h4>
+            <pre><code>find . -type f -print | xargs cat 2&gt;/dev/null | grep -i "flag{"</code></pre>
+            <p><strong>السيناريو:</strong> مختبر اختراق يشارك في CTF حيث يتم تزويده بملف zip ضخم يحتوي على مئات الملفات. بدل فتح كل ملف يدويًا، يريد طريقة سريعة لصيد جميع الـ FLAGs.</p>
+            <p><strong>الشرح:</strong> <code>find . -type f -print</code> يسرد كل الملفات في الشجرة، <code>xargs cat</code> يمرر القائمة إلى <code>cat</code> لعرض محتوياتها، <code>2&gt;/dev/null</code> يخفي رسائل الخطأ الناتجة عن الملفات غير القابلة للقراءة، وأخيرًا <code>grep -i "flag{"</code> يلتقط الأسطر التي تحتوي على النمط المطلوب بدون حساسية لحالة الأحرف. النتيجة: قائمة سريعة بكل الأماكن التي ظهرت فيها FLAGs.</p>
+        </div>
+
+        <div class="scenario">
+            <h4><strong>3) توثيق تحقيق أمني بجلسة script</strong></h4>
+            <pre><code>script -q incident_session.log
+# ... تنفيذ أوامر ps, find, grep, cat ...
+exit</code></pre>
+            <p><strong>السيناريو:</strong> محلل Incident Response يستلم جهازًا ربما تعرض لاختراق. بدل الاعتماد على الذاكرة، يريد تسجيل كل أوامره ومخرجاتها كدليل يمكن مراجعته لاحقًا أو عرضه في تقرير رسمي.</p>
+            <p><strong>الشرح:</strong> بمجرد تشغيل <code>script -q incident_session.log</code>، أي أمر يكتبه (مثل <code>ps aux</code>, <code>grep</code>, <code>find</code>) سيُسجّل في الملف. عند كتابة <code>exit</code> يتم إغلاق الملف وإعادته للـ prompt الأصلي. يمكن فتح الملف لاحقًا بـ <code>less incident_session.log</code> أو مشاركته مع الفريق لمراجعة الخطوات بالتسلسل الزمني.</p>
+        </div>
+    </div>
+
+    <div class="block">
+        <h3>🧠 Quiz – Bandit Intro &amp; CTF Review</h3>
+
+        <div class="quiz-q">
+            <strong>1. ما هو الهدف الأساسي من مستويات Bandit الأولى (0→3)؟</strong><br>
+            <label><input type="radio" name="q1" value="a"> تعلّم برمجة C المتقدمة</label><br>
+            <label><input type="radio" name="q1" value="b"> تدريبك على أوامر لينكس الأساسية والبحث عن ملفات وكلمات سر مخفية</label><br>
+            <label><input type="radio" name="q1" value="c"> اختبار سرعة الإنترنت لديك</label>
+        </div>
+
+        <div class="quiz-q">
+            <strong>2. أي أمر هو الأنسب للاتصال بالمستوى الأول في Bandit على المنفذ 2220؟</strong><br>
+            <label><input type="radio" name="q2" value="a"> <code>ssh bandit0@bandit.labs.overthewire.org</code></label><br>
+            <label><input type="radio" name="q2" value="b"> <code>ssh -p 2220 bandit0@bandit.labs.overthewire.org</code></label><br>
+            <label><input type="radio" name="q2" value="c"> <code>ssh bandit.labs.overthewire.org@bandit0 -p 22</code></label>
+        </div>
+
+        <div class="quiz-q">
+            <strong>3. لديك ملف مخفي باسم <code>.secret_pass</code> داخل مجلد. أي تسلسل أوامر يوصلك إليه بشكل صحيح؟</strong><br>
+            <label><input type="radio" name="q3" value="a"> <code>cd dir ; ls ; cat secret_pass</code></label><br>
+            <label><input type="radio" name="q3" value="b"> <code>cd dir ; ls -a ; cat .secret_pass</code></label><br>
+            <label><input type="radio" name="q3" value="c"> <code>cd dir ; cat *</code></label>
+        </div>
+
+        <div class="quiz-q">
+            <strong>4. أي أمر يتعامل بشكل آمن مع اسم ملف غريب يحتوي على مسافات وعلامة <code>-</code> في بدايته؟</strong><br>
+            <label><input type="radio" name="q4" value="a"> <code>cat -password file.txt</code></label><br>
+            <label><input type="radio" name="q4" value="b"> <code>cat "./- -password file (final).txt"</code></label><br>
+            <label><input type="radio" name="q4" value="c"> <code>cat -l "- -password file (final).txt"</code></label>
+        </div>
+
+        <div class="quiz-q">
+            <strong>5. ما دور الأمر <code>script history_day10.log</code> في هذا الدرس؟</strong><br>
+            <label><input type="radio" name="q5" value="a"> إنشاء مهمة مجدولة (cron job)</label><br>
+            <label><input type="radio" name="q5" value="b"> تسجيل كل أوامر الجلسة ومخرجاتها في ملف للمراجعة لاحقًا</label><br>
+            <label><input type="radio" name="q5" value="c"> تشفير ملف <code>history_day10.log</code></label>
+        </div>
+
+        <div class="quiz-q">
+            <strong>6. أي أمر يستخدم للبحث عن ملف باسم <code>flag.txt</code> في كل المجلدات الفرعية؟</strong><br>
+            <label><input type="radio" name="q6" value="a"> <code>grep "flag.txt" *</code></label><br>
+            <label><input type="radio" name="q6" value="b"> <code>find . -type f -name "flag.txt"</code></label><br>
+            <label><input type="radio" name="q6" value="c"> <code>ls -la flag.txt</code></label>
+        </div>
+
+        <button onclick="gradeQuiz()">حساب النتيجة</button>
+        <div id="quizResult" class="result-box"></div>
+        <p class="note">📸 بعد الضغط على زر "حساب النتيجة" خذ Screenshot لهذا الصندوق + Screenshot للـ Terminal أثناء تنفيذ Mini‑CTF اليوم، ثم أرسلهم مع الجملة: <strong>"درس Day 10 Bandit‑Style مكتمل ✓ ساعات: 4"</strong>.</p>
+    </div>
+
+    <script>
+        function gradeQuiz() {
+            let score = 0;
+            const total = 6;
+
+            const q1 = document.querySelector('input[name="q1"]:checked');
+            const q2 = document.querySelector('input[name="q2"]:checked');
+            const q3 = document.querySelector('input[name="q3"]:checked');
+            const q4 = document.querySelector('input[name="q4"]:checked');
+            const q5 = document.querySelector('input[name="q5"]:checked');
+            const q6 = document.querySelector('input[name="q6"]:checked');
+
+            if (q1 && q1.value === 'b') score++;
+            if (q2 && q2.value === 'b') score++;
+            if (q3 && q3.value === 'b') score++;
+            if (q4 && q4.value === 'b') score++;
+            if (q5 && q5.value === 'b') score++;
+            if (q6 && q6.value === 'b') score++;
+
+            const percent = Math.round((score / total) * 100);
+            let grade = 'F';
+            if (percent >= 90) grade = 'A';
+            else if (percent >= 80) grade = 'B';
+            else if (percent >= 70) grade = 'C';
+            else if (percent >= 60) grade = 'D';
+
+            const box = document.getElementById('quizResult');
+            box.style.display = 'block';
+            box.innerHTML = `
+                <strong>Quiz Day 10 - Bandit Intro &amp; CTF Review</strong><br>
+                ${score}/${total} إجابات صحيحة<br>
+                النسبة: ${percent}%<br>
+                التقدير: ${grade}<br><br>
+                📸 خذ Screenshot لهذا الصندوق + Screenshot للـ Terminal وأرسلهما إلى Perplexity لتوثيق إنجاز درس اليوم.
+            `;
+        }
+    </script>
+
+</body>
+</html>
